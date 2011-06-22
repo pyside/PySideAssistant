@@ -1,0 +1,3 @@
+graft templates
+graft scripts
+include README.assistant

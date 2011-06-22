@@ -1,0 +1,13 @@
+Source: pyside-assistant
+Section: devel
+Priority: extra
+Maintainer: Bruno Araujo <bruno.araujo@openbossa.org>
+Build-Depends: debhelper (>= 7.0.50~), python-stdeb
+Standards-Version: 3.9.1
+Homepage: <insert the upstream URL, if relevant>
+
+Package: pyside-assistant
+Architecture: all
+Depends: ${shlibs:Depends}, ${misc:Depends}, sharutils, python-stdeb
+Description: <insert up to 60 chars description>
+ <insert long description, indented with spaces>

@@ -1,0 +1,13 @@
+==================================================
+INSTALL - Building and installing pyside-assistant
+==================================================
+
+pyside-assistant can be built using standard tools in a Debian environment.
+An example is shown below:
+
+    $ cd pyside-assistant
+    $ dpkg-buildpackage -D -rfakeroot
+
+The resulting .deb package can be installed with dpkg:
+
+    $ sudo dpkg -i pyside-assistant_0.1-1_all.deb
