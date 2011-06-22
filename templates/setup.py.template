@@ -12,5 +12,4 @@ setup(name="${PROJECT}",
       description="${DESC}",
       long_description=read('${PROJECT}.longdesc'),
       data_files=[('share/applications',['${PROJECT}.desktop']),
-                  ('share/${PROJECT}/qml', ['qml/${PROJECT}.qml']),
-                  ('share/icons/hicolor/64x64/apps', ['${PROJECT}.png']) ],)
+                  ('share/${PROJECT}/qml', glob.glob('qml/*.qml')), ],)

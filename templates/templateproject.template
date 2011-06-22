@@ -18,16 +18,12 @@ def main():
     glw = QtOpenGL.QGLWidget()
     view.setViewport(glw)
 
-    rc = view.rootContext()
-
     if os.path.exists('/usr/share/${PROJECT}/qml'):
-        view.setSource('/usr/share/${PROJECT}/qml/${PROJECT}.qml')
+        view.setSource('/usr/share/${PROJECT}/qml/main.qml')
     else:
-        view.setSource(os.path.join('qml','${PROJECT}.qml'))
+        view.setSource(os.path.join('qml','main.qml'))
 
-    view.setResizeMode(QtDeclarative.QDeclarativeView.SizeRootObjectToView)
-
-    view.show()
+    view.showFullScreen()
     app.exec_()
 
 if __name__ == "__main__":

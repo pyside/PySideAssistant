@@ -184,9 +184,14 @@ def psa_init(options, args, parser):
         "templateproject.desktop.template": slug+".desktop",
         "templateproject.png.template": slug+".png",
         "templateproject.qml.template": slug+".qml",
+        "main.qml.template": "main.qml",
+        "MainPage.qml.template": "MainPage.qml",
         "templateproject.template": slug })
 
     for f in files.keys():
+        #skip this file for now
+        if f == "templateproject.qml.template":
+            continue
         newFile = open(os.path.join(projectdir,newNames[f]),'wb')
         newFile.write(files[f])
         newFile.close()
@@ -196,7 +201,9 @@ def psa_init(options, args, parser):
         shutil.copy(os.path.join(templates_path, "README.assistant"), os.path.join(os.curdir, slug))
     
     #move .qml file into place
-    shutil.move(os.path.join(projectdir, slug+'.qml'), os.path.join(projectdir,'qml'))
+    for f in glob.glob(os.path.join(projectdir, '*.qml')):
+        shutil.move(os.path.join(projectdir, f), os.path.join(projectdir,'qml'))
+
     print "Done! Now enter the ./" + slug + " directory and start hacking :-)"
     print "If you don't want to use OpenGL for QML rendering or if it is not supported, open the " + slug + " file"
     print "and comment out the needed lines."
@@ -336,6 +343,10 @@ def insertIcon(debfile, slug):
     # check if control file exists
     if not os.path.isfile(os.path.join(tempdir,'DEBIAN', 'control')):
         parser.error('Cannot find DEBIAN/control! Aborting.')
+
+    # place icon inside extracted package
+    os.makedirs(os.path.join(tempdir, 'usr/share/icons/hicolor/64x64/apps'))
+    shutil.copy(iconfile, os.path.join(tempdir, 'usr/share/icons/hicolor/64x64/apps'))
 
     # create encoded icon for Application Manager
     command = 'cd '+projectdir+'; uuencode -m '+slug+'.png '+slug+'.png > '+slug+'.base64'
