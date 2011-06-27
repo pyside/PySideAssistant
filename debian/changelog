@@ -1,3 +1,9 @@
+pyside-assistant (0.2) unstable; urgency=low
+
+  * Add missing information in debian/control
+
+ -- Bruno Araujo <bruno.araujo@openbossa.org>  Mon, 27 Jun 2011 14:17:12 -0400
+
 pyside-assistant (0.1-1) unstable; urgency=low
 
   * Initial release
