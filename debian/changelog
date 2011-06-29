@@ -1,3 +1,9 @@
+pyside-assistant (0.3) unstable; urgency=low
+
+  * Fix init command options validation
+
+ -- Bruno Araujo <bruno.araujo@openbossa.org>  Wed, 29 Jun 2011 14:35:15 -0400
+
 pyside-assistant (0.2) unstable; urgency=low
 
   * Add missing information in debian/control

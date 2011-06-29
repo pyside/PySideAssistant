@@ -126,7 +126,7 @@ def psa_init(options, args, parser):
         desc = "A PySide example"
 
     if options.section is not None:
-        if section in permitted_sections:
+        if options.section in permitted_sections:
             section = options.section
         else:
             parser.error("Invalid section; please use a valid section from http://wiki.maemo.org/Task:Package_categories#New_list_for_Diablo")
@@ -134,7 +134,7 @@ def psa_init(options, args, parser):
         section = "development"
 
     if options.category is not None:
-        if category in permitted_categorys:
+        if options.category in permitted_categories:
             category = options.category
         else:
             parser.error("Invalid category; please use a valid category from http://standards.freedesktop.org/menu-spec/latest/apa.html")
@@ -293,7 +293,6 @@ def psa_update(options, args, parser):
     if options.category is not None:
         if options.category not in permitted_categories:
             parser.error("Invalid category; please use a valid category from http://standards.freedesktop.org/menu-spec/latest/apa.html")
-
         filename = slug+'.desktop'
         with open(filename, 'rb') as f:
            oldfile = f.read()
