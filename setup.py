@@ -32,6 +32,7 @@ setup(name="pyside-assistant",
        all needed files to successfully create a application using PySide, which can be
        easily built and deployed without additional tools.
       """,
-      data_files=[('share/pyside-assistant/templates', glob.glob('templates/*')),
+      data_files=[('share/pyside-assistant/templates/fremantle', glob.glob('templates/fremantle/*')),
+                  ('share/pyside-assistant/templates/harmattan', glob.glob('templates/harmattan/*')),
                   ('share/pyside-assistant/templates', ['README.assistant']),
                   ('share/pyside-assistant/scripts', glob.glob('scripts/*')), ],)

@@ -23,6 +23,8 @@ from optparse import OptionParser, OptionGroup
 from string import Template
 import re, os, sys, glob, subprocess, shutil, random, pwd
 
+#Platforms: fremantle, harmattan
+permitted_platforms = [ "fremantle", "harmattan"]
 
 #Sections from http://wiki.maemo.org/Task:Package_categories#New_list_for_Diablo
 permitted_sections = [ "desktop", 
@@ -97,10 +99,11 @@ def main(templates_path, scripts_path):
 
 
 def psa_init(options, args, parser):
-    if len(args) != 2:
-        parser.error("You need to provide the project slug when using the init command, e.g. psa init sampleproject")
+    if len(args) != 3:
+        parser.error("You need to provide the project slug when using the init command, e.g. psa init sampleproject [fremantle|harmattan]")
 
     slug = args[1]
+    platform = args[2]
     appname = ""
     desc = ""
     category = ""
@@ -113,6 +116,9 @@ def psa_init(options, args, parser):
 
     if re.search('[^a-zA-Z0-9\-]',slug) is not None:
         parser.error("Project slug must be comprised only of alphanumeric characters and the dash character")
+
+    if platform not in permitted_platforms:
+        parser.error("Invalid platform! Use one of these platforms: fremantle, harmattan")
 
     #fill optional parameters
     if options.appname is not None:
@@ -156,7 +162,7 @@ def psa_init(options, args, parser):
 
     #load templates
     files = {}
-    for filename in glob.glob(os.path.join(templates_path, "*.template")):
+    for filename in glob.glob(os.path.join(templates_path + "/" + platform, "*.template")):
         files[filename.split('/')[-1]] = open(filename, 'rb').read(3072) #limit read to 3KB
 
     #replace everything
@@ -189,9 +195,6 @@ def psa_init(options, args, parser):
         "templateproject.template": slug })
 
     for f in files.keys():
-        #skip this file for now
-        if f == "templateproject.qml.template":
-            continue
         newFile = open(os.path.join(projectdir,newNames[f]),'wb')
         newFile.write(files[f])
         newFile.close()
