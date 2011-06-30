@@ -242,13 +242,34 @@ def getProjectSlug(parser):
 
     return slug
 
+def getProjectPlatform(parser):
+    pyVersion = ""
+    stdebContents = ""
+    # ensure we are in a valid project directory
+    try:
+        f = open('stdeb.cfg', 'rb')
+        stdebContents = f.readlines()
+        f.close()
+    except IOError:
+        parser.error('Cannot find stdeb.cfg! Is this a project directory?')
 
+    for line in stdebContents:
+        if 'XS-Python-Version: ' in line:
+            pyVersion = line.split()[1]
+
+    if pyVersion == "2.5":
+        return "fremantle"
+    elif pyVersion == "2.6":
+        return "harmattan"
+    else:
+        parser.error("Invalid python version in the XS-Python-Version field of stdeb.cfg; Damaged file?")
 
 def psa_build_deb(parser):
     if not moduleExists('stdeb'):
         parser.error('stdeb module not available! Please install it before executing build-deb command')
 
     slug = getProjectSlug(parser)
+    platform = getProjectPlatform(parser)
 
     if os.path.exists('deb_dist'):
         try:
@@ -260,7 +281,7 @@ def psa_build_deb(parser):
     runShellCommand('python setup.py --command-packages=stdeb.command bdist_deb > build-deb.log')
     
     debfile = glob.glob('deb_dist/*.deb')[0]
-    insertIcon(debfile, slug)
+    insertIcon(debfile, slug, platform)
     
     # add credentials, if any exists
     credentials = ""
@@ -332,7 +353,7 @@ def psa_update(options, args, parser):
         print 'Application short description updated! The old '+filename+' was saved as ' + filename + '.old'
 
 
-def insertIcon(debfile, slug):
+def insertIcon(debfile, slug, platform):
     tempdir = '/tmp/deb.' + str(int(random.uniform(1000000,9999999)))
     projectdir = os.curdir
     iconfile = slug+'.png'
@@ -347,8 +368,12 @@ def insertIcon(debfile, slug):
         parser.error('Cannot find DEBIAN/control! Aborting.')
 
     # place icon inside extracted package
-    os.makedirs(os.path.join(tempdir, 'usr/share/icons/hicolor/64x64/apps'))
-    shutil.copy(iconfile, os.path.join(tempdir, 'usr/share/icons/hicolor/64x64/apps'))
+    if platform == "fremantle":
+        os.makedirs(os.path.join(tempdir, 'usr/share/icons/'))
+        shutil.copy(iconfile, os.path.join(tempdir, 'usr/share/icons/'))
+    else:
+        os.makedirs(os.path.join(tempdir, 'usr/share/icons/hicolor/64x64/apps'))
+        shutil.copy(iconfile, os.path.join(tempdir, 'usr/share/icons/hicolor/64x64/apps'))
 
     # create encoded icon for Application Manager
     command = 'cd '+projectdir+'; uuencode -m '+slug+'.png '+slug+'.png > '+slug+'.base64'
