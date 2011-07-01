@@ -3,6 +3,7 @@ Syntax: psa <init|build-deb|update>
 Parameters for the init command:
 
 *  <slug> - Project slug
+*  <platform> - Project platform: fremantle or harmattan.
 *  [--app-name <application name>] - Human readable name for the application
 *  [--description <short description>] - Short description
 *  [--section <section>] - Application section
