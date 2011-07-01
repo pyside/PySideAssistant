@@ -10,4 +10,4 @@ An example is shown below:
 
 The resulting .deb package can be installed with dpkg:
 
-    $ sudo dpkg -i pyside-assistant_<version>_all.deb
+    $ sudo dpkg -i pyside-assistant_0.4_all.deb

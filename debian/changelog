@@ -1,3 +1,9 @@
+pyside-assistant (0.4) unstable; urgency=low
+
+  * Adding support to fremantle
+
+ -- Willer Moreira <willer.moreira@openbossa.org>  Fri, 01 Jul 2011 13:58:45 -0400
+
 pyside-assistant (0.3) unstable; urgency=low
 
   * Fix init command options validation
