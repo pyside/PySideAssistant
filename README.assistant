@@ -32,8 +32,10 @@ Note that the section should be a valid one,
 as specified in http://wiki.maemo.org/Task:Package_categories#New_list_for_Diablo.
 
 * sampleproject.aegis: Sample credentials file, which initially is empty. Information
-of how to populate it can be found at (...)
+of how to populate it can be found at [2].
 NOTE: this file is used only in harmattan projects.
+
+[2] http://library.developer.nokia.com/topic/MeeGo_1.2_Harmattan_API/html/guide/html/Developer_Library_Developing_for_Harmattan_Harmattan_security_6cbe.html
 
 * sampleproject.desktop: This file specifies how to run the application
 from the application grid, with various fields. Information about
@@ -48,11 +50,11 @@ http://standards.freedesktop.org/menu-spec/latest/apa.html.
 * sampleproject.png: The application icon, which is displayed in the
 application grid.
 
-* sampleproject.qml: The QML file for the application. By default
-just displays the words "Hello QML!" in the center of the window.
+* qml/*.qml: The QML files for the application. Their contents depend
+on the platform.
 
 * sampleproject: Main program. Initializes the application and provide
-support for displaying the QML file contents.
+support for displaying the QML files contents.
 
 * sampleproject.longdesc: Holds the contents of the long_description field of
 setup.py, which as the name implies is a more detailed description of what the project is.
