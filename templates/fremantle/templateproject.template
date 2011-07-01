@@ -15,8 +15,8 @@ def main():
     engine = view.engine()
     engine.quit.connect(sys.exit)
 
-    if os.path.exists('/usr/share/${PROJECT}/qml'):
-        view.setSource('/usr/share/${PROJECT}/qml/main.qml')
+    if os.path.exists('/opt/usr/share/${PROJECT}/qml'):
+        view.setSource('/opt/usr/share/${PROJECT}/qml/main.qml')
     else:
         view.setSource(os.path.join('qml','main.qml'))
 
