@@ -24,10 +24,10 @@ from string import Template
 import re, os, sys, glob, subprocess, shutil, random, pwd
 
 #Platforms: fremantle, harmattan
-permitted_platforms = [ "fremantle", "harmattan"]
+permitted_platforms = ["fremantle", "harmattan"]
 
 #Sections from http://wiki.maemo.org/Task:Package_categories#New_list_for_Diablo
-permitted_sections = [ "desktop", 
+permitted_sections = ["desktop",
         "development",
         "education", 
         "games", 
@@ -100,7 +100,7 @@ def main(templates_path, scripts_path):
 
 def psa_init(options, args, parser):
     if len(args) != 3:
-        parser.error("You need to provide the project slug when using the init command, e.g. psa init sampleproject [fremantle|harmattan]")
+        parser.error("You need to provide the project slug and the platform when using the init command, e.g. psa init sampleproject <fremantle|harmattan>")
 
     slug = args[1]
     platform = args[2]
