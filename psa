@@ -120,6 +120,9 @@ def psa_init(options, args, parser):
     if platform not in permitted_platforms:
         parser.error("Invalid platform! Use one of these platforms: fremantle, harmattan")
 
+    if platform == 'fremantle' and not os.path.exists('/usr/bin/python2.5'):
+        parser.error("Please install python2.5 in order to create projects for the Fremantle platform.")
+
     #fill optional parameters
     if options.appname is not None:
         appname = options.appname

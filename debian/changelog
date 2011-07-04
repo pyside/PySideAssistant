@@ -5,6 +5,7 @@ pyside-assistant (0.4) unstable; urgency=low
 
   [ Bruno Araujo ]
   * Update unit tests
+  * Detect python2.5 when creating Fremantle projects
 
  -- Bruno Araujo <bruno.araujo@openbossa.org>  Mon, 04 Jul 2011 14:33:34 -0400
 
