@@ -1,8 +1,12 @@
 pyside-assistant (0.4) unstable; urgency=low
 
+  [ Willer Moreira ]
   * Adding support to fremantle
 
- -- Willer Moreira <willer.moreira@openbossa.org>  Fri, 01 Jul 2011 13:58:45 -0400
+  [ Bruno Araujo ]
+  * Update unit tests
+
+ -- Bruno Araujo <bruno.araujo@openbossa.org>  Mon, 04 Jul 2011 14:33:34 -0400
 
 pyside-assistant (0.3) unstable; urgency=low
 

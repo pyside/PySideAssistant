@@ -9,8 +9,6 @@ class PySideAssistantCommandsTest(unittest.TestCase):
         self.path = '/tmp/psa-unittests'
         shutil.rmtree(self.path, ignore_errors=True)
         os.makedirs(self.path)
-        command = ' '.join(['cd', self.path, ';', 'psa init testproject > /dev/null'])
-        self.runShellCommand(command)
 
     def tearDown(self):
         shutil.rmtree(self.path)
@@ -20,33 +18,58 @@ class PySideAssistantCommandsTest(unittest.TestCase):
         if returnCode:
             raise Exception("Error running command: " + command)
 
-    def testInitCommand(self):
+    def testInitCommandHarmattan(self):
+        command = ' '.join(['cd', self.path, ';', 'psa init testproject-harmattan harmattan> /dev/null'])
+        self.runShellCommand(command)
 
         #assert all files are in place
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'testproject.aegis')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'testproject')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'MANIFEST.in')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'setup.py')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'testproject.longdesc')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'stdeb.cfg')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'testproject.desktop')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'qml')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'qml/MainPage.qml')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'qml/main.qml')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'testproject.png')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'README.assistant')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan.aegis')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'MANIFEST.in')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'setup.py')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan.longdesc')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'stdeb.cfg')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan.desktop')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'qml')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'qml/MainPage.qml')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'qml/main.qml')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan.png')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'README.assistant')))
+
+
+    def testInitCommandFremantle(self):
+        command = ' '.join(['cd', self.path, ';', 'psa init testproject-fremantle fremantle > /dev/null'])
+        self.runShellCommand(command)
+
+        #assert all files are in place
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'testproject-fremantle')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'MANIFEST.in')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'setup.py')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'testproject-fremantle.longdesc')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'stdeb.cfg')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'testproject-fremantle.desktop')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'qml')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'qml/main.qml')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'testproject-fremantle.png')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'README.assistant')))
+
 
     def testBuildDebCommand(self):
+        command = ' '.join(['cd', self.path, ';', 'psa init testproject harmattan > /dev/null'])
+        self.runShellCommand(command)
         command = ' '.join(['cd', os.path.join(self.path,'testproject'), ';', 'psa build-deb > /dev/null 2>&1'])
         self.runShellCommand(command)
         self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'deb_dist', 'testproject_0.1.0-1_all.deb')))
 
     def testUpdateCommand(self):
+        command = ' '.join(['cd', self.path, ';', 'psa init testproject harmattan > /dev/null'])
+        self.runShellCommand(command)
+
         #test long commands
         command = ' '.join(['cd', os.path.join(self.path,'testproject'), ';', 'psa update --section="games" --app-name="test app1" --category="Game" --description="a description1" > /dev/null'])
         self.runShellCommand(command)
-        
         f = open(os.path.join(self.path, 'testproject', 'stdeb.cfg'))
         contents = f.read()
         f.close()
@@ -66,7 +89,7 @@ class PySideAssistantCommandsTest(unittest.TestCase):
         #test short commands
         command = ' '.join(['cd', os.path.join(self.path,'testproject'), ';', 'psa update -s "network" -a "test app2" -c "Video" -d "a description2" > /dev/null'])
         self.runShellCommand(command)
-        
+
         f = open(os.path.join(self.path, 'testproject', 'stdeb.cfg'))
         contents = f.read()
         f.close()
@@ -86,9 +109,9 @@ class PySideAssistantCommandsTest(unittest.TestCase):
 
     def testInitCommandParameters(self):
         #test long commands
-        command = ' '.join(['cd', self.path, ';', 'psa init testproject1 --section="games" --app-name="test app1" --category="Game" --description="a description1" > /dev/null'])
+        command = ' '.join(['cd', self.path, ';', 'psa init testproject1 harmattan --section="games" --app-name="test app1" --category="Game" --description="a description1" > /dev/null'])
         self.runShellCommand(command)
-        
+
         f = open(os.path.join(self.path, 'testproject1', 'stdeb.cfg'))
         contents = f.read()
         f.close()
@@ -106,9 +129,9 @@ class PySideAssistantCommandsTest(unittest.TestCase):
         self.assert_('description="a description1"' in contents)
 
         #test short commands
-        command = ' '.join(['cd', self.path, ';', 'psa init testproject2 -s "network" -a "test app2" -c "Video" -d "a description2" > /dev/null'])
+        command = ' '.join(['cd', self.path, ';', 'psa init testproject2 harmattan -s "network" -a "test app2" -c "Video" -d "a description2" > /dev/null'])
         self.runShellCommand(command)
-        
+
         f = open(os.path.join(self.path, 'testproject2', 'stdeb.cfg'))
         contents = f.read()
         f.close()
