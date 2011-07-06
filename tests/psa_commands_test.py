@@ -1,7 +1,22 @@
 '''Unit tests for pyside-assistant commands'''
 
 import unittest
-import shutil, os, subprocess
+import shutil
+import os
+import subprocess
+import sys
+from contextlib import contextmanager
+
+@contextmanager
+def working_directory(path):
+    '''Simple context manager to change the working directory'''
+    current_dir = os.getcwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(current_dir)
+
 
 class PySideAssistantCommandsTest(unittest.TestCase):
 
@@ -14,16 +29,25 @@ class PySideAssistantCommandsTest(unittest.TestCase):
         shutil.rmtree(self.path)
 
     def runShellCommand(self, command, verbose=False):
-        returnCode = subprocess.call(command, shell=True)
-        if returnCode:
-            raise Exception("Error running command: " + command)
+        proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+        stdout, stderr = proc.communicate()
+        if proc.returncode:
+            self.fail(stderr)
 
+
+class InitTest(PySideAssistantCommandsTest):
     def testInitCommandHarmattan(self):
-        command = ' '.join(['cd', self.path, ';', 'psa init testproject-harmattan harmattan> /dev/null'])
-        self.runShellCommand(command)
+        with working_directory(self.path):
+            command = 'psa init testproject-harmattan harmattan> /dev/null'
+            self.runShellCommand(command)
 
         #assert all files are in place
+        project_path = os.path.join(self.path, 'testproject-harmattan')
+
+        self.assert_(os.path.isdir(project_path))
         self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan.psa')))
         self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan.aegis')))
         self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan')))
         self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'MANIFEST.in')))
@@ -39,12 +63,14 @@ class PySideAssistantCommandsTest(unittest.TestCase):
 
 
     def testInitCommandFremantle(self):
-        command = ' '.join(['cd', self.path, ';', 'psa init testproject-fremantle fremantle > /dev/null'])
-        self.runShellCommand(command)
+        with working_directory(self.path):
+            command = 'psa init testproject-fremantle fremantle > /dev/null'
+            self.runShellCommand(command)
 
         #assert all files are in place
         self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle')))
         self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'testproject-fremantle')))
+        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'testproject-fremantle.psa')))
         self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'MANIFEST.in')))
         self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'setup.py')))
         self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'testproject-fremantle.longdesc')))
@@ -55,13 +81,75 @@ class PySideAssistantCommandsTest(unittest.TestCase):
         self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'testproject-fremantle.png')))
         self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'README.assistant')))
 
+    def testInitCommandParameters(self):
+        #test long commands
+        with working_directory(self.path):
+            command = 'psa init testproject1 harmattan --section="games" --app-name="test app1" --category="Game" --description="a description1" > /dev/null'
+            self.runShellCommand(command)
 
+        f = open(os.path.join(self.path, 'testproject1', 'stdeb.cfg'))
+        contents = f.read()
+        f.close()
+        self.assert_('Section: user/games' in contents)
+
+        f = open(os.path.join(self.path, 'testproject1', 'testproject1.desktop'))
+        contents = f.read()
+        f.close()
+        self.assert_('Name=test app1' in contents)
+        self.assert_('Categories=Game;' in contents)
+
+        f = open(os.path.join(self.path, 'testproject1', 'setup.py'))
+        contents = f.read()
+        f.close()
+        self.assert_('description="a description1"' in contents)
+
+        #test short commands
+        command = ' '.join(['cd', self.path, ';', 'psa init testproject2 harmattan -s "network" -a "test app2" -c "Video" -d "a description2" > /dev/null'])
+        self.runShellCommand(command)
+
+        f = open(os.path.join(self.path, 'testproject2', 'stdeb.cfg'))
+        contents = f.read()
+        f.close()
+        self.assert_('Section: user/network' in contents)
+
+        f = open(os.path.join(self.path, 'testproject2', 'testproject2.desktop'))
+        contents = f.read()
+        f.close()
+        self.assert_('Name=test app2' in contents)
+        self.assert_('Categories=Video;' in contents)
+
+        f = open(os.path.join(self.path, 'testproject2', 'setup.py'))
+        contents = f.read()
+        f.close()
+        self.assert_('description="a description2"' in contents)
+
+
+class BuildTest(PySideAssistantCommandsTest):
     def testBuildDebCommand(self):
-        command = ' '.join(['cd', self.path, ';', 'psa init testproject harmattan > /dev/null'])
-        self.runShellCommand(command)
-        command = ' '.join(['cd', os.path.join(self.path,'testproject'), ';', 'psa build-deb > /dev/null 2>&1'])
-        self.runShellCommand(command)
+        with working_directory(self.path):
+            command = 'psa init testproject harmattan > /dev/null'
+            self.runShellCommand(command)
+            with working_directory(os.path.join(self.path, 'testproject')):
+                command = 'psa build-deb > /dev/null'
+                self.runShellCommand(command)
         self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'deb_dist', 'testproject_0.1.0-1_all.deb')))
+
+        #TODO test if icon was added.
+
+
+    def testBuildDebCommandFremantle(self):
+
+            with working_directory(self.path):
+                command = 'psa init testproject fremantle > /dev/null'
+                self.runShellCommand(command)
+                with working_directory(os.path.join(self.path, 'testproject')):
+                    command = 'psa build-deb > /dev/null'
+                    self.runShellCommand(command)
+                    self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'deb_dist', 'testproject_0.1.0-1_all.deb')))
+
+
+class UpdateTest(PySideAssistantCommandsTest):
+    
 
     def testUpdateCommand(self):
         command = ' '.join(['cd', self.path, ';', 'psa init testproject harmattan > /dev/null'])
@@ -106,47 +194,6 @@ class PySideAssistantCommandsTest(unittest.TestCase):
         f.close()
         self.assert_('description="a description2"' in contents)
 
-
-    def testInitCommandParameters(self):
-        #test long commands
-        command = ' '.join(['cd', self.path, ';', 'psa init testproject1 harmattan --section="games" --app-name="test app1" --category="Game" --description="a description1" > /dev/null'])
-        self.runShellCommand(command)
-
-        f = open(os.path.join(self.path, 'testproject1', 'stdeb.cfg'))
-        contents = f.read()
-        f.close()
-        self.assert_('Section: user/games' in contents)
-
-        f = open(os.path.join(self.path, 'testproject1', 'testproject1.desktop'))
-        contents = f.read()
-        f.close()
-        self.assert_('Name=test app1' in contents)
-        self.assert_('Categories=Game;' in contents)
-
-        f = open(os.path.join(self.path, 'testproject1', 'setup.py'))
-        contents = f.read()
-        f.close()
-        self.assert_('description="a description1"' in contents)
-
-        #test short commands
-        command = ' '.join(['cd', self.path, ';', 'psa init testproject2 harmattan -s "network" -a "test app2" -c "Video" -d "a description2" > /dev/null'])
-        self.runShellCommand(command)
-
-        f = open(os.path.join(self.path, 'testproject2', 'stdeb.cfg'))
-        contents = f.read()
-        f.close()
-        self.assert_('Section: user/network' in contents)
-
-        f = open(os.path.join(self.path, 'testproject2', 'testproject2.desktop'))
-        contents = f.read()
-        f.close()
-        self.assert_('Name=test app2' in contents)
-        self.assert_('Categories=Video;' in contents)
-
-        f = open(os.path.join(self.path, 'testproject2', 'setup.py'))
-        contents = f.read()
-        f.close()
-        self.assert_('description="a description2"' in contents)
 
 if __name__ == "__main__":
     unittest.main()
