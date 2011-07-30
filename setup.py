@@ -31,11 +31,13 @@ setup(name="pyside-assistant",
             data_files=[
                 ('share/psa', ['README']),
                 ('share/psa/templates/harmattan',
-                        glob.glob('templates/harmattan/*.template')),
+                        glob.glob('templates/harmattan/*.template') +
+                        ['templates/harmattan/template.cfg']),
                 ('share/psa/templates/harmattan/qml',
                         glob.glob('templates/harmattan/qml/*.template')),
                 ('share/psa/templates/fremantle',
-                        glob.glob('templates/fremantle/*.template')),
+                        glob.glob('templates/fremantle/*.template') +
+                        ['templates/fremantle/template.cfg']),
                 ('share/psa/templates/fremantle/qml',
                         glob.glob('templates/fremantle/qml/*.template')),
                 ('share/psa/scripts', ['scripts/refhashmake.py', 'scripts/deb_add.py']),
