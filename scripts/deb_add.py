@@ -62,7 +62,7 @@ def parse_control(control):
                 arch = match.groups()[0]
                 continue
 
-    logging.debug('Found name %s, version %s, arch %s', (name, version, arch))
+    logging.debug('Found name %s, version %s, arch %s', name, version, arch)
     if not all([name, version, arch]):
         logging.critical("Couldn't parse control file %s", control)
         sys.exit(1)
@@ -196,6 +196,48 @@ def process_args(args):
     return files
 
 
+def validate_file(abs_source, target):
+    '''Validates the source, target pair'''
+
+    logging.info('Validating source %s and target %s', abs_source, target)
+    if not (os.path.exists(abs_source) and os.path.isfile(abs_source)):
+        raise ValueError('Source file must be a regular file')
+
+    if len(target) > 16:
+        raise ValueError('Target file must be at most 16 characters')
+
+
+def add(abs_source, target, abs_control, abs_debfile):
+    '''Adds file to a existing debian package.
+
+    All paths are absolute, except for target which is relative to
+    the package root.
+
+    abs_source - absolute path of the source file
+    target - target name of the file in the package
+    abs_control - control file of this package
+    abs_debfile - debian package to be modified.
+
+    This function copies the original debian package to abs_debfile.orig
+    '''
+
+    logging.info('Adding %s as %s to abs_debfile %s with abs_control %s', abs_source, target, abs_debfile, abs_control)
+
+    control_data = parse_control(abs_control)
+    validate_file(abs_source, target)
+
+    st = os.stat(abs_source)
+
+    files = {target : (abs_source, st[stat.ST_MTIME], st[stat.ST_SIZE], target)}
+
+    with open(abs_debfile+'.new', 'wb') as newdeb:
+        replace_files(newdeb, abs_debfile, files, control_data)
+        add_files(newdeb, files)
+
+    os.rename(abs_debfile, abs_debfile + '.orig')
+    os.rename(abs_debfile + '.new', abs_debfile)
+
+
 def main():
 
     options, args = parse_args()
@@ -204,7 +246,6 @@ def main():
         logging.basicConfig(level=logging.DEBUG)
 
     if options.control:
-        # try to parse the provided control file
         name, version, arch = parse_control(options.control)
 
         control = name, version, arch

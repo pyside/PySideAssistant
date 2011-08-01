@@ -33,8 +33,11 @@ import logging
 from optparse import OptionParser
 
 
-def parse_args():
-    '''Define command line arguments and parse sys.argv.'''
+def create_parser():
+    '''Creates the option parser.
+
+    This parser can be used by scripts/modules using refhashmake as a module
+    '''
     parser = OptionParser()
 
     parser.add_option('-v', '--verbose', dest='verbose',
@@ -77,8 +80,17 @@ def parse_args():
                         relative=True, no_links=True, scripts=True,
                         sourceid='', prefix='', all=False)
 
+    return parser
 
-    return parser.parse_args()
+
+def parse_args(argv=None):
+    '''Define command line arguments and parse sys.argv.'''
+    if argv is None:
+        argv = sys.argv
+
+    parser = create_parser()
+
+    return parser.parse_args(argv)
 
 
 def calculate_hash(filename, algorithm=hashlib.sha1):
@@ -134,7 +146,7 @@ def format_output(filename, digest, size, options):
     return line
 
 
-def process_file(filename, options):
+def process_file(filename, options, stream=sys.stdout):
     '''Process a single filename print its formatted signature line.'''
 
     if options.no_links:
@@ -150,7 +162,7 @@ def process_file(filename, options):
             return 0
 
         digest, size = calculate_hash(filename)
-        print format_output(filename, digest, size, options)
+        stream.write(format_output(filename, digest, size, options) + '\n')
 
 
 def main():
