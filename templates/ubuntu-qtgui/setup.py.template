@@ -11,4 +11,5 @@ setup(name="${PROJECT}",
       maintainer_email="${EMAIL}",
       description="${DESC}",
       long_description=read('${PROJECT}.longdesc'),
-      data_files=[('share/applications',['${PROJECT}.desktop']),])
+      data_files=[('share/applications',['${PROJECT}.desktop']),
+                  ('share/pixmaps', ['${PROJECT}.png']),])
