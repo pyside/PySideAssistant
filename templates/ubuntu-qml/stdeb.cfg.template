@@ -1,5 +1,5 @@
 [DEFAULT]
-XS-Python-Version: 2.6
+XS-Python-Version: ${PYVERSION}
 Package: ${PROJECT}
 Section: user/${SECTION}
 Depends: python-pyside.qtgui, python-pyside.qtdeclarative
