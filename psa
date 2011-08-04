@@ -282,6 +282,9 @@ class QmlProject(Project):
     def copy_template_files(self):
         '''Copy the template files to project folder, replacing the project information'''
 
+        # Make root dir
+        os.makedirs(self.projectdir)
+
         for root, dirnames, filenames in os.walk(self.template_info.path):
             for dirname in dirnames:
                 os.makedirs(os.path.join(self.projectdir, dirname))
