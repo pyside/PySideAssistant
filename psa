@@ -18,477 +18,1019 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
 # 02110-1301 USA
+"""
+%prog <command> [arguments]
+
+Helper script to work with PySide projects
+
+init - creates a new project from the template
+build-deb - creates binary package of current project
+update - updates data from the current project
+list - lists the available templates
+help - for help on a specific command
+
+To display the arguments for each command run %prog --help
+"""
+
+DOCS = __doc__.split('\n\n')
+USAGE, DESCRIPTION = DOCS[0], '\n\n'.join(DOCS[1:])
+
+TEMPLATES = {}
 
 from optparse import OptionParser, OptionGroup
-from string import Template
-import re, os, sys, glob, subprocess, shutil, random, pwd
+import re
 
-#Platforms: fremantle, harmattan
-permitted_platforms = ["fremantle", "harmattan"]
+import os
+import fnmatch
+import string
+import sys
+import textwrap
+import logging
+import shutil
+import tempfile
+import subprocess
+import glob
+import pwd
+
+from contextlib import contextmanager
+from ConfigParser import ConfigParser
+
+try:
+    __import__('stdeb')
+except ImportError:
+    logging.warning('stdeb not available. Support for building deb packages disabled.')
+
+
+class BuildError(Exception):
+    '''Raised for errors during the build'''
+
+class RequirementsError(Exception):
+    '''Raised for errors during the build'''
+
+# Utility functions
+@contextmanager
+def working_directory(path):
+    '''Simple context manager to change the working directory'''
+    current_dir = os.getcwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(current_dir)
+
+def remove_directory(abs_dir):
+    if os.path.exists(abs_dir):
+        try:
+            logging.info('Cleaning deb_dist directory...')
+            shutil.rmtree(abs_dir)
+        except OSError:
+            fatal('Cannot clean directory! Aborting.')
+
+def execute_with_log(args, logfilename, on_error):
+    '''Execute a program writing its output to a log file'''
+
+    with open(logfilename, 'w') as log_file:
+        proc = subprocess.Popen(args, stdout=log_file, stderr=subprocess.STDOUT)
+        proc.communicate()
+
+        if proc.returncode and on_error:
+            raise on_error
+
+def encode_icon(png, base64):
+    '''Encodes an icon to base64'''
+
+    with open(base64, 'w') as base64_handle:
+        proc = subprocess.Popen(['uuencode', '-m', png, png],
+                                stdout=base64_handle)
+        proc.communicate()
+        if proc.returncode:
+            raise BuildError('Failed to encode icon')
+
+
+# Handling packages
+def unpack_control(debfile, targetdir):
+    '''Unpack 'debfile' to 'targetdir' '''
+    if subprocess.call(['dpkg', '-x', debfile, targetdir]):
+        raise BuildError('Failed to extract the deb file for icon insertion')
+
+    if subprocess.call(['dpkg-deb', '--control', debfile, os.path.join(targetdir, 'DEBIAN')]):
+        raise BuildError('Failed to extract the control file for icon insertion')
+
+    if not os.path.isfile(os.path.join(targetdir, 'DEBIAN', 'control')):
+        raise BuildError('Failed to find the control file for icon insertion')
+
+def repackage(directory, debfile):
+    if subprocess.call(['fakeroot', 'dpkg', '-b', directory, debfile]):
+        raise BuildError('Failed to repackage the project')
+
+
+
+# Project template classes
 
 #Sections from http://wiki.maemo.org/Task:Package_categories#New_list_for_Diablo
-permitted_sections = ["desktop",
+PERMITTED_SECTIONS = ["desktop",
         "development",
-        "education", 
-        "games", 
-        "graphics", 
-        "multimedia", 
-        "navigation", 
-        "network", 
-        "office", 
-        "science", 
-        "system", 
+        "education",
+        "games",
+        "graphics",
+        "multimedia",
+        "navigation",
+        "network",
+        "office",
+        "science",
+        "system",
         "utilities"]
 
+
 # Categories from http://standards.freedesktop.org/menu-spec/latest/apa.html
-permitted_categories = ["AudioVideo", 
-        "Audio", 
-        "Video", 
-        "Development", 
-        "Education", 
-        "Game", 
-        "Graphics", 
-        "Network", 
-        "Office", 
-        "Settings", 
-        "System", 
-        "Utility"] 
+PERMITTED_CATEGORIES = ["AudioVideo",
+        "Audio",
+        "Video",
+        "Development",
+        "Education",
+        "Game",
+        "Graphics",
+        "Network",
+        "Office"
+        "Settings",
+        "System",
+        "Utility"]
 
-def main(templates_path, scripts_path):
-    usage = """
-    %prog <command> [arguments]
+class PluginMount(type):
+    '''Hook to list all plugins'''
 
-    The command argument should be one of the following:
+    def __init__(mcs, name, bases, attrs):
+        if not hasattr(mcs, 'plugins'):
+            mcs.plugins = {}
+        else:
+            mcs.plugins[name] = mcs
 
-    init - creates a new project from the template
-    build-deb - creates binary package of current project
-    update - updates data from the current project
+    def get_plugins(mcs):
+        '''Lists all plugins'''
+        return mcs.plugins
 
-    For displaying the arguments for each command run %prog --help
-    """
 
-    parser = OptionParser(usage)
+class Project(object):
+    '''Base project class'''
 
-    group = OptionGroup(parser, "Options for init and update commands")
-    group.add_option("-a", "--app-name", action="store", \
-            dest="appname", help="Human-readable application name")
-    group.add_option("-s", "--section", action="store", \
-            dest="section", help="Application section")
-    group.add_option("-d", "--description", action="store", \
-            dest="desc", help="Application short description")
-    group.add_option("-c", "--category", action="store", \
-            dest="category", help="Application category")
-    group.add_option("-p", "--slug", action="store",\
-            dest="slug", help="Project slug (init only)")
+    __metaclass__ = PluginMount
 
-    parser.add_option_group(group)
+class QmlProject(Project):
+    '''Basic qml project class.'''
+
+    no_process_patterns = []
+
+    def __init__(self, template_info):
+        '''Initializes the instance with default values'''
+        Project.__init__(self)
+
+        self.template_info = template_info
+        self._slug = 'dummyproject'
+        self.projectdir = ''
+
+        self.parser = None
+
+    def get_slug(self):
+        return self._slug
+
+    def set_slug(self, value):
+        '''Slug checks'''
+        if value.startswith('-') or value.endswith('-'):
+            raise ValueError('Slug must not start nor end with a dash')
+
+        if re.search('[^a-zA-Z0-9\-]', value) is not None:
+            raise ValueError('Slug must be only alphanumeric and dash characters')
+
+        self._slug = value
+
+    slug = property(get_slug, set_slug)
+
+    def placeholders(self):
+        '''Returns the mapping of substitutions for template processing'''
+        return dict(PROJECT=self.slug)
+
+    def init(self, slug, args):
+        '''Initializes the project folder'''
+
+        self.pre_init()
+
+        self.slug = slug
+        self.projectdir = os.path.abspath(os.path.join(os.curdir, slug))
+
+        if os.path.exists(self.projectdir):
+            fatal("Project directory " + self.slug + " already exists! Aborting.")
+
+        self.init_option_parser()
+        options, args = self.process_options(args)
+
+        self.init_fields(options)
+
+        self.copy_template_files()
+
+        self.process_fields()
+
+        self.write_project_config_file()
+
+        self.post_init()
+
+    def pre_init(self):
+        '''Pre-init checks'''
+
+    def post_init(self):
+        '''Post init actions'''
+
+    def write_project_config_file(self):
+        '''Initializes the file with the project configuration information'''
+
+        with open(os.path.join(self.projectdir, self.slug + '.psa'), 'wb') as project_config:
+            parser = ConfigParser()
+            parser.add_section('Project')
+            for key, value in self.placeholders().items():
+                parser.set('Project', key, value)
+
+            parser.set('Project', 'template', self.template_info.name)
+
+            parser.write(project_config)
+
+    def add_external_file(self, source, target):
+        '''Copies an external file into this project folder.
+
+        source - path to the source file
+        target - path to the target relative to the project root
+        '''
+
+        shutil.copy(source, os.path.join(self.projectdir, target))
+
+    def init_option_parser(self):
+        '''Creates the parser and add options.
+
+        Subclasses can extend this method with extra options
+        '''
+        self.parser = OptionParser()
+
+    def process_options(self, args):
+        '''Parses the argument list and returns options and extra arguments'''
+        return self.parser.parse_args(args)
+
+    def init_fields(self, options):
+        '''Check for extra options.
+
+        This method can be reimplemented to check for additional options
+        '''
+        return self, options # dummy return to make pylint shut up
+
+    def copy_template_files(self):
+        '''Copy the template files to project folder, replacing the project information'''
+
+        for root, dirnames, filenames in os.walk(self.template_info.path):
+            for dirname in dirnames:
+                os.makedirs(os.path.join(self.projectdir, dirname))
+
+            folder = root.replace(self.template_info.path, '')
+            if folder.startswith('/'):
+                folder = folder[1:]
+
+            for filename in filenames:
+                if not filename.endswith('.template'):
+                    continue
+
+                targetname = os.path.basename(filename).replace('.template', '')
+                targetname = targetname.replace('templateproject', self.slug)
+                target = os.path.join(self.projectdir, folder, targetname)
+                source = os.path.join(root, filename)
+
+                shutil.copy(source, target)
+
+                if self.should_process(targetname):
+                    self.process(target)
+
+    def process_fields(self):
+        '''Replaces the project items for the placeholders'''
+
+        for root, _, filenames in os.walk(self.projectdir):
+            for filename in filenames:
+                abs_filename = os.path.abspath(os.path.join(root, filename))
+                self.process(abs_filename)
+
+
+    def should_process(self, filename):
+        '''Checks if this file should be processed.
+
+        Currently just checks a predefined list of file patterns'''
+        filename = os.path.basename(filename)
+
+        for pattern in self.no_process_patterns:
+            if fnmatch.fnmatch(filename, pattern):
+                return False
+        return True
+
+
+    def process(self, filename):
+        '''Replaces the placeholders in the source file'''
+
+        tempfd, tempfilename = tempfile.mkstemp(text=True)
+        temp = os.fdopen(tempfd, 'w')
+        try:
+            with open(filename, 'r') as source:
+                for line in source:
+                    newline = string.Template(line).substitute(self.placeholders())
+                    temp.write(newline)
+            logging.debug('Finished writing temp file for %s', filename)
+        except (IOError,), error:
+            logging.critical('Error processing file %s. Reason: %s',
+                             os.path.basename(filename), error)
+            sys.exit(1)
+        else:
+            temp.close()
+
+        shutil.move(tempfilename, filename)
+
+
+    @classmethod
+    def from_info(cls, info):
+        '''Creates a new instance of a template from the given project info'''
+        instance = cls()
+        instance.fill_info(info)
+
+        return instance
+
+    def fill_info(self, info):
+        '''Fill project attributes from the info dictionary'''
+        self.slug = info['project']
+        self.projectdir = os.path.abspath(os.curdir)
+
+    def build(self, _=None):
+        '''Builds the project'''
+        logging.debug('Building the project')
+        self.pre_build()
+        self.execute_build()
+        self.post_build()
+
+    def pre_build(self):
+        '''Get things ready for building, like verifying dependencies.'''
+
+    def execute_build(self):
+        '''Execute the proper build'''
+
+    def post_build(self):
+        '''Execute extra build steps'''
+
+    def update(self, args=None):
+        '''Updates sections of the project'''
+
+        print 'Updating the project'
+
+        self.init_option_parser()
+        options, args = self.process_options(args)
+
+        self.init_fields(options)
+
+        self.pre_update(options, args)
+        self.execute_update(options, args)
+        self.post_update(options, args)
+
+    def pre_update(self, options, args):
+        '''Get things ready for updating, like verifying dependencies.'''
+
+    def execute_update(self, options, args):
+        '''Execute the proper update'''
+
+    def post_update(self, options, args):
+        '''Execute extra update steps'''
+
+
+class DebProject(QmlProject):
+    '''Generic template for debian packages. Will be subclassed for Harmattan,
+       Fremantle and Ubuntu templates
+    '''
+
+    # Mapping for folders in the template
+    # Extensions that shouldn't be processed for placeholders
+    no_process_patterns = ['*.jpg', '*.png']
+
+    def __init__(self, template_info):
+        '''Initializes the instance with default values'''
+        QmlProject.__init__(self, template_info)
+        self.appname = 'PySide app'
+        self.description = 'A PySide example'
+        self.maintainer = ''
+        self.email = ''
+        self.category = 'Development'
+        self.section = 'development'
+
+    def pre_build(self):
+        if not 'stdeb' in sys.modules:
+            raise RequirementsError('stdeb is needed to build debian packages')
+
+        proc = subprocess.Popen(['uuencode', '--version'], stdout=subprocess.PIPE)
+        proc.communicate()
+        if proc.returncode:
+            raise RequirementsError('uuencode is needed to insert icon in debian packages')
+
+    def execute_build(self):
+        '''Execute the proper build'''
+
+        remove_directory(os.path.abspath(os.path.join(os.curdir, 'deb_dist')))
+
+        cmd = 'python setup.py --command-packages=stdeb.command bdist_deb'
+        args = cmd.split()
+
+        execute_with_log(args, 'build-deb.log',
+                         on_error=BuildError('Failed to build initial package.'))
+
+        debfile = glob.glob('deb_dist/*.deb')[0]
+        self.insert_icon(os.path.abspath(debfile))
+
+        return os.path.abspath(debfile)
+
+
+    def insert_icon(self, abs_debfile):
+        '''Inserts the local project icon'''
+        abs_tempdir = tempfile.mkdtemp(prefix='psatmp')
+        icon_filename = self.slug + '.png'
+
+        try:
+            unpack_control(abs_debfile, abs_tempdir)
+
+            abs_png = os.path.join(self.projectdir, icon_filename)
+            abs_base64 = os.path.join(self.projectdir, self.slug + '.base64')
+
+            encode_icon(abs_png, abs_base64)
+
+            with open(os.path.join(abs_tempdir, 'DEBIAN', 'control'), 'ab') as control_handle:
+                control_handle.write('Maemo-Icon-26:\n')
+                with open(abs_base64, 'rb') as base64_handle:
+                    for line in base64_handle:
+                        if line.startswith('begin') or line.startswith('end'):
+                            continue
+
+                        control_handle.write(' %s' % line)
+
+            repackage(abs_tempdir, abs_debfile)
+        except:
+            raise
+        finally:
+            shutil.rmtree(abs_tempdir)
+
+
+    def fill_info(self, info):
+        super(DebProject, self).fill_info(info)
+        self.appname = info['APPNAME'.lower()]
+        self.description = info['DESC'.lower()]
+        self.maintainer = info['MAINTAINER'.lower()]
+        self.email = info['EMAIL'.lower()]
+        self.section = info['SECTION'.lower()]
+        self.category = info['CATEGORY'.lower()]
+
+    def placeholders(self):
+        '''Returns the mapping of substitutions for template processing'''
+        data = super(DebProject, self).placeholders().copy()
+        data.update(dict(APPNAME=self.appname,
+                        DESC=self.description,
+                        CATEGORY=self.category,
+                        SECTION=self.section,
+                        MAINTAINER=self.maintainer,
+                        EMAIL=self.email))
+        return data
+
+    def init_option_parser(self):
+        '''Add Debian options to the argument parser'''
+        super(DebProject, self).init_option_parser()
+
+        group = OptionGroup(self.parser, "Options for init and update commands for debian templates")
+        group.add_option("-a", "--app-name", action="store",
+                dest="appname", help="Human-readable application name")
+        group.add_option("-s", "--section", action="store",
+                dest="section", help="Application section")
+        group.add_option("-d", "--description", action="store",
+                dest="desc", help="Application short description")
+        group.add_option("-c", "--category", action="store",
+                dest="category", help="Application category")
+        group.add_option("-p", "--slug", action="store",
+                dest="slug", help="Project slug (init only)")
+
+        self.parser.add_option_group(group)
+
+    def init_fields(self, options):
+        '''Check for extra options.
+
+        This method can be reimplemented to check for additional options
+        '''
+        # currently option handling is split between template (where they are used)
+        # and the proper psa script, where they are added to the option parser.
+        self.init_appname_and_description(options)
+        self.init_section_and_category(options)
+        self.init_maintainer_and_email()
+
+    def init_appname_and_description(self, options):
+        '''Initialize the application name and description'''
+        if options.appname is not None:
+            self.appname = options.appname
+
+        if options.desc is not None:
+            self.description = options.desc
+
+    def init_section_and_category(self, options):
+        '''Checks for section and category options'''
+
+        if options.section:
+            if options.section in PERMITTED_SECTIONS:
+                self.section = options.section
+            else:
+                fatal("Error: Invalid section; please use a valid section from\
+                       http://wiki.maemo.org/Task:Package_categories#New_list_for_Diablo")
+
+        if options.category:
+            if options.category in PERMITTED_CATEGORIES:
+                self.category = options.category
+            else:
+                fatal("Error: Invalid category; please use a valid category from " +\
+                      "http://standards.freedesktop.org/menu-spec/latest/apa.html")
+
+    def init_maintainer_and_email(self):
+        '''Guesses maintainer name and email'''
+        if os.getenv('DEBFULLNAME') is not None:
+            self.maintainer = os.getenv('DEBFULLNAME')
+        else:
+            # if there is no DEBFULLNAME environment variable, get full name from /etc/passwd
+            currentuser = pwd.getpwnam(os.getlogin())
+            self.maintainer = currentuser.pw_gecos.split(',')[0]
+
+        if os.getenv('DEBEMAIL') is not None:
+            self.email = os.getenv('DEBEMAIL')
+        else:
+            self.email = "email@example.com"
+
+    def execute_update(self, options, args):
+        '''Execute field updates'''
+
+        if options.section is not None:
+            if options.section not in PERMITTED_SECTIONS:
+                fatal("Invalid section; please use a valid section from http://wiki.maemo.org/Task:Package_categories#New_list_for_Diablo")
+            filename = 'stdeb.cfg'
+            with open(filename, 'rb') as f:
+                oldfile = f.read()
+            match = re.search(r'Section:.+', oldfile)
+            oldSection = match.group().split('/')[1]
+            newfile = oldfile.replace('Section: user/' + oldSection, 'Section: user/' + options.section)
+            shutil.copy(filename, 'stdeb.cfg.old')
+            with open(filename, 'wb') as f:
+                f.write(newfile)
+            print 'Application Section updated! The old stdeb.cfg was saved as stdeb.cfg.old'
+
+        if options.category is not None:
+            if options.category not in PERMITTED_CATEGORIES:
+                fatal("Invalid category; please use a valid category from http://standards.freedesktop.org/menu-spec/latest/apa.html")
+            filename = self.slug + '.desktop'
+            with open(filename, 'rb') as f:
+                oldfile = f.read()
+            match = re.search(r'Categories=.+', oldfile)
+            oldCategory = match.group()[:-1].split("=")[1]
+            newfile = oldfile.replace(oldCategory, options.category)
+            shutil.copy(filename, filename + '.old')
+            with open(filename, 'wb') as f:
+                f.write(newfile)
+            print 'Application category updated! The old ' + filename + ' was saved as ' + filename + '.old'
+
+        if options.appname is not None:
+            filename = self.slug + '.desktop'
+            with open(filename, 'rb') as f:
+                oldfile = f.read()
+            match = re.search(r'Name=.+', oldfile)
+            oldAppName = match.group().split("=")[1]
+            newfile = oldfile.replace(oldAppName, options.appname)
+            shutil.copy(filename, filename + '.old')
+            with open(filename, 'wb') as f:
+                f.write(newfile)
+            print 'Application name updated! The old ' + filename + ' was saved as ' + filename + '.old'
+
+        if options.desc is not None:
+            filename = 'setup.py'
+            with open(filename, 'rb') as f:
+                oldfile = f.read()
+            match = re.search(r'description=.+', oldfile)
+            oldDescription = match.group()[:-1].split("=")[1]
+            newfile = oldfile.replace(oldDescription, '"' + options.desc + '"')
+            shutil.copy(filename, filename + '.old')
+            with open(filename, 'wb') as f:
+                f.write(newfile)
+            print 'Application short description updated! The old ' + filename + ' was saved as ' + filename + '.old'
+
+
+
+
+
+class Harmattan(DebProject):
+    '''Customizations for Harmattan packaging.
+
+    Mainly adding credentials and signature file
+    '''
+
+    name = 'harmattan'
+    refhashmake = None
+    deb_add = None
+
+    def pre_build(self):
+        DebProject.pre_build(self)
+
+        # Load refhashmake and deb-add modules
+        if 'PSA_ROOT' in os.environ:
+            sys.path.append(os.path.join(os.environ['PSA_ROOT'], 'scripts'))
+
+        try:
+            self.refhashmake = __import__('refhashmake')
+            self.deb_add = __import__('deb_add')
+        except ImportError:
+            # Try the prefix install
+            sys.path.append(os.path.join(sys.prefix, 'share', 'psa', 'scripts'))
+            try:
+                self.refhashmake = __import__('refhashmake')
+                self.deb_add = __import__('deb_add')
+            except ImportError:
+                raise RequirementsError("Can't find harmattan modules")
+            finally:
+                sys.path.remove(os.path.join(sys.prefix, 'share', 'psa', 'scripts'))
+        finally:
+            if 'PSA_ROOT' in os.environ:
+                sys.path.remove(os.path.join(os.environ['PSA_ROOT'], 'scripts'))
+
+
+    def execute_build(self):
+        '''Overriden from DebProject'''
+        abs_debfile = super(Harmattan, self).execute_build()
+
+        self.add_credentials(abs_debfile)
+
+    def add_credentials(self, abs_debfile):
+        '''Creates the signature file and adds aegis credentials'''
+        abs_tempdir = tempfile.mkdtemp(prefix='psatmp')
+
+        try:
+            if subprocess.call(['dpkg', '-x', abs_debfile, abs_tempdir]):
+                raise BuildError('Failed to extract the deb file for icon insertion')
+
+            if subprocess.call(['dpkg-deb', '--control', abs_debfile, os.path.join(abs_tempdir, 'DEBIAN')]):
+                raise BuildError('Failed to extract the control file for icon insertion')
+
+            if not os.path.isfile(os.path.join(abs_tempdir, 'DEBIAN', 'control')):
+                raise BuildError('Failed to find the control file for icon insertion')
+
+            self.create_digsums(abs_tempdir)
+
+            if subprocess.call(['fakeroot', 'dpkg', '-b', abs_tempdir, abs_debfile]):
+                raise BuildError('Failed to repackage.')
+
+            self.inject_credentials(abs_debfile, abs_tempdir)
+
+        finally:
+            shutil.rmtree(abs_tempdir)
+
+    def inject_credentials(self, abs_debfile, abs_tempdir):
+        '''Adds the credential to the existing debian file
+
+        abs_debfile - absolute path to the deb file to be modified.
+        abs_tempdir - absolute path to the directory with the exploded package.
+        '''
+        abs_credential = os.path.abspath(os.path.join(self.projectdir, self.slug + '.aegis'))
+        try:
+            if os.path.getsize(abs_credential) == 0:
+                logging.info("Empty signature file. Skipping.")
+                return
+        except os.error:
+            logging.warning("Couldn't open aegis file. Skipping.")
+            return
+
+        with working_directory(os.path.join(self.projectdir, 'deb_dist')):
+            self.deb_add.add(abs_source=abs_credential,
+                        target='_aegis',
+                        abs_control=os.path.join(abs_tempdir, 'DEBIAN', 'control'),
+                        abs_debfile=abs_debfile)
+
+
+    def create_digsums(self, abs_tempdir):
+        '''Writes the signature file to the given directory
+
+        abs_tempdir - Absolute path to the directory with the exploded debian
+                      package.
+        '''
+
+        data_matches = []
+        control_matches = []
+        for root, _, filenames in os.walk(abs_tempdir):
+            if filenames and 'DEBIAN' not in root:
+                for filename in filenames:
+                    tmp = '/'.join(os.path.join(root.split('/')[3:]))
+                    data_matches.append(os.path.join(tmp, filename))
+            elif filenames and 'DEBIAN' in root:
+                for filename in filenames:
+                    tmp = '/'.join(os.path.join(root.split('/')[4:]))
+                    control_matches.append(os.path.join(tmp, filename))
+
+
+        abs_sigfilename = os.path.join(abs_tempdir, 'DEBIAN', 'digsigsums')
+
+        with working_directory(abs_tempdir):
+            argv = ['-c', '-a', '-o', 'com.nokia.maemo', '-r', '-f'] + data_matches
+            options, _ = self.refhashmake.parse_args(argv)
+
+            with open(abs_sigfilename, 'w') as sig_file:
+                for filename in data_matches:
+                    logging.debug('Processing file: %s', filename)
+                    self.refhashmake.process_file(filename, options, stream=sig_file)
+
+        with working_directory(os.path.join(abs_tempdir, 'DEBIAN')):
+            argv = ['-c', '-a', '-o', 'com.nokia.maemo', '-p', 'var/lib/dpkg/info/%s.' % self.slug, '-r',
+                    '-f'] + control_matches
+
+            options, _ = self.refhashmake.parse_args(argv)
+
+            with open(abs_sigfilename, 'a') as sig_file:
+                for filename in control_matches:
+                    logging.debug('Processing file: %s', filename)
+                    self.refhashmake.process_file(filename, options, stream=sig_file)
+
+
+class Fremantle(DebProject):
+    '''Template class'''
+
+    name = 'fremantle'
+
+    def pre_init(self):
+        '''Init checks'''
+
+        self.check_py25()
+
+    def pre_build(self):
+        '''Build checks'''
+        DebProject.pre_build(self)
+        self.check_py25()
+
+    def check_py25(self):
+        '''Is python 2.5 available?'''
+        try:
+            subprocess.call('python2.5 -c 42'.split())
+        except OSError:
+            raise RequirementsError('Fremantle projects require python2.5')
+
+
+# Had to reimplement this as the original method uses textwrap.fill
+# and messes up the formatting
+class PsaOptionParser(OptionParser):
+    '''Psa own OptionParser'''
+
+    def format_description(self, formatter):
+        '''Returns the description unchanged'''
+        return self.description
+
+def fatal(msg):
+    '''Simple wrapper to display an error message and exit'''
+    sys.stderr.write(textwrap.fill(textwrap.dedent(msg)) + '\n')
+    sys.exit(1)
+
+def main():
+    parser = PsaOptionParser(usage=USAGE, description=DESCRIPTION)
+    parser.disable_interspersed_args()
+
+    parser.add_option("-v", "--verbose", action="store_true", default=False,
+                     help="Output debug messages")
 
     (options, args) = parser.parse_args()
+
+    if options.verbose:
+        logging.basicConfig(level=logging.DEBUG)
 
     if len(args) == 0:
         parser.error("You need to pass a command to psa: init, update or build-deb")
 
     if args[0] == "init":
-        psa_init(options, args, parser)
+        psa_init(args)
     elif args[0] == "build-deb":
-        psa_build_deb(parser)
+        psa_build(args)
     elif args[0] == "update":
-        psa_update(options, args, parser)
+        psa_update(args)
+    elif args[0] == "list":
+        psa_list_templates()
     else:
-        parser.error("Invalid command! Use one of these commands: init, update or build-deb")
+        fatal("Unknow command. Try init, build-deb, update, or list")
+
+def get_readme_path():
+    '''Returns the README file path'''
+    filename = 'README'
+    if os.path.exists(filename):
+        return filename
+
+    if 'PSA_ROOT' in os.environ:
+        return os.path.join(os.environ['PSA_ROOT'], filename)
+
+    path = os.path.join(sys.prefix, 'share', 'psa', filename)
+
+    if not os.path.exists(path):
+        return None
+
+    return path
+
+def get_templates_dir():
+    '''Returns the directory storing the templates'''
+
+    # Try local path
+    if os.path.exists('templates'):
+        return os.path.abspath('templates')
+
+    if 'PSA_TEMPLATE_PATH' in os.environ:
+        return os.environ['PSA_TEMPLATE_PATH']
+
+    if 'PSA_ROOT' in os.environ:
+        return os.path.join(os.environ['PSA_ROOT'], 'templates')
+
+    # Try local path
+    if os.path.exists('templates'):
+        return os.path.abspath('templates')
+
+    # Finally, try the global path
+    path = os.path.join(sys.prefix, 'share', 'psa', 'templates')
+    if os.path.isdir(path):
+        return path
+
+class TemplateData(object):
+    '''Simple representation of a template'''
+
+    def __init__(self, name='', path='', builder=None):
+        self.name = name
+        self.path = path
+        self.builder = builder
+
+def load_template_data(path):
+    '''Loads template information for the template stored at path'''
+
+    filename = os.path.join(path, 'template.cfg')
+    parser = ConfigParser()
+
+    try:
+        with open(filename) as handle:
+            parser.readfp(handle, filename)
+    except IOError:
+        sys.stderr.write('Failed to load template %s\n' % path)
+        return None
+
+    return TemplateData(name=os.path.basename(path),
+                        path=path,
+                        builder=parser.get('Template', 'class'))
 
 
-def psa_init(options, args, parser):
-    if len(args) != 3:
-        parser.error("You need to provide the project slug and the platform when using the init command, e.g. psa init sampleproject <fremantle|harmattan>")
+def get_templates():
+    '''Get all templates available'''
+
+    if TEMPLATES:
+        return TEMPLATES
+
+    templates_dir = get_templates_dir()
+
+    for root, dirnames, _ in os.walk(templates_dir):
+        if root != templates_dir:
+            break
+
+        for dirname in dirnames:
+            template = load_template_data(os.path.join(root, dirname))
+            if template:
+                TEMPLATES[template.name] = template
+
+    return TEMPLATES
+
+def get_template(name):
+    '''Get a single template by name'''
+
+    if not TEMPLATES:
+        get_templates()
+
+    return TEMPLATES.get(name, None)
+
+def get_local_config(path=None):
+    '''Loads the local project config file'''
+    if path is None:
+        path = os.curdir
+
+    # Guess project name from current dir name
+    project = os.path.basename(os.path.abspath(path))
+    filename = os.path.join(os.curdir, project+'.psa')
+
+    try:
+        with open(filename) as handle:
+            parser = ConfigParser()
+            parser.readfp(handle, filename)
+
+            config = {}
+
+            for name, value in parser.items('Project'):
+                config[name] = value
+
+            return config
+    except IOError:
+        return None
+
+def psa_list_templates():
+    '''Print all the available templates'''
+    print ', '.join(get_templates())
+
+
+class ProjectInfoError(Exception):
+    '''Exception for errors in project information'''
+
+def psa_init(args):
+    '''Initializes the project directory from the request template and options
+
+    Arguments:
+    options - Options for the template.
+    args - 3-uple with command name, project slug and template.
+    '''
+    # TODO Move everything to templates.init, to allow processing the
+    # argument list there.
+    if len(args) < 3:
+        fatal("""\
+                You need to provide the project slug and the platform when
+                using the init command, e.g. psa init sampleproject
+                <platform>""")
 
     slug = args[1]
-    platform = args[2]
-    appname = ""
-    desc = ""
-    category = ""
-    section = ""
-    maintainer = ""
-    email = ""
+    template_name = args[2]
 
-    if slug.startswith("-") or slug.endswith("-"):
-        parser.error("Project slug must not start nor end with a dash")
+    template = get_template(template_name)
+    if not template:
+        fatal("Error: Can't find template %s. Available templates: %s." %\
+              (template_name, ', '.join(get_templates())))
 
-    if re.search('[^a-zA-Z0-9\-]',slug) is not None:
-        parser.error("Project slug must be comprised only of alphanumeric characters and the dash character")
+    builder = Project.get_plugins().get(template.builder, None)(template)
 
-    if platform not in permitted_platforms:
-        parser.error("Invalid platform! Use one of these platforms: fremantle, harmattan")
+    if not builder:
+        fatal("Can't find builder class %s for template %s." %\
+                (template.builder, template.name))
 
-    if platform == 'fremantle' and not os.path.exists('/usr/bin/python2.5'):
-        parser.error("Please install python2.5 in order to create projects for the Fremantle platform.")
+    try:
+        builder.init(slug, args)
+    except (RequirementsError,), error:
+        fatal(str(error))
 
-    #fill optional parameters
-    if options.appname is not None:
-        appname = options.appname
-    else:
-        appname = "PySide example"
-
-    if options.desc is not None:
-        desc = options.desc
-    else:
-        desc = "A PySide example"
-
-    if options.section is not None:
-        if options.section in permitted_sections:
-            section = options.section
-        else:
-            parser.error("Invalid section; please use a valid section from http://wiki.maemo.org/Task:Package_categories#New_list_for_Diablo")
-    else:
-        section = "development"
-
-    if options.category is not None:
-        if options.category in permitted_categories:
-            category = options.category
-        else:
-            parser.error("Invalid category; please use a valid category from http://standards.freedesktop.org/menu-spec/latest/apa.html")
-    else:
-        category = "Development"
-
-    # XXX: this works only on Unix environments!
-    if os.getenv('DEBFULLNAME') is not None:
-        maintainer = os.getenv('DEBFULLNAME')
-    else:
-        # if there is no DEBFULLNAME environment variable, get full name from /etc/passwd
-        currentuser = pwd.getpwnam(os.getlogin())
-        maintainer = currentuser.pw_gecos.split(',')[0]
-
-    if os.getenv('DEBEMAIL') is not None:
-        email = os.getenv('DEBEMAIL')
-    else:
-        email = "email@example.com"
-
-    #load templates
-    files = {}
-    for filename in glob.glob(os.path.join(templates_path + "/" + platform, "*.template")):
-        files[filename.split('/')[-1]] = open(filename, 'rb').read(3072) #limit read to 3KB
-
-    #replace everything
-    placeholders = dict(PROJECT=slug, APPNAME=appname, DESC=desc, CATEGORY=category, \
-            SECTION=section, MAINTAINER=maintainer, EMAIL=email)
-
-    for f in files.keys():
-        #ignore .png file
-        if f == "templateproject.png.template":
-            continue
-        files[f] = Template(files[f]).substitute(placeholders)
-
-    #write project files
-    projectdir = os.path.abspath(os.path.join(os.curdir, slug))
-    if os.path.exists(projectdir):
-        parser.error("Project directory " + slug + " already exists! Aborting.")
-
-    os.makedirs(os.path.join(projectdir, 'qml'))
-
-    newNames = dict({"MANIFEST.in.template": "MANIFEST.in",
-        "templateproject.longdesc.template": slug+".longdesc",
-        "setup.py.template": "setup.py",
-        "stdeb.cfg.template": "stdeb.cfg",
-        "templateproject.aegis.template": slug+".aegis",
-        "templateproject.desktop.template": slug+".desktop",
-        "templateproject.png.template": slug+".png",
-        "templateproject.qml.template": slug+".qml",
-        "main.qml.template": "main.qml",
-        "MainPage.qml.template": "MainPage.qml",
-        "templateproject.template": slug })
-
-    for f in files.keys():
-        newFile = open(os.path.join(projectdir,newNames[f]),'wb')
-        newFile.write(files[f])
-        newFile.close()
-    
-    #copy README.assistant
-    if os.path.exists(os.path.join(templates_path, "README.assistant")):
-        shutil.copy(os.path.join(templates_path, "README.assistant"), os.path.join(os.curdir, slug))
-    
-    #move .qml file into place
-    for f in glob.glob(os.path.join(projectdir, '*.qml')):
-        shutil.move(os.path.join(projectdir, f), os.path.join(projectdir,'qml'))
+    readme_path = get_readme_path()
+    if readme_path:
+        builder.add_external_file(readme_path, "README.assistant")
 
     print "Done! Now enter the ./" + slug + " directory and start hacking :-)"
-    print "If you don't want to use OpenGL for QML rendering or if it is not supported, open the " + slug + " file"
-    print "and comment out the needed lines."
+    print textwrap.fill(textwrap.dedent("""\
+            If you don't want to use OpenGL for QML rendering or if it is
+            not supported, open the %s file and comment out the
+            needed lines.""" % slug))
+
+def psa_build(args):
+    '''Builds the project'''
+
+    config = get_local_config()
+
+    if not config:
+        fatal("""\
+                Couldn't find project configuration file. Are you in the
+                project root directory?""")
+
+    template = get_template(config['template'])
+
+    if not template:
+        fatal("Error: Can't find local template. Available templates: %s." %\
+              (', '.join(get_templates())))
+
+    builder = Project.get_plugins().get(template.builder, None)(template)
+    builder.fill_info(config)
+
+    if not builder:
+        fatal("Can't find builder class %s for template %s." %\
+                (template.builder, template.name))
 
 
-def getProjectSlug(parser):
-    slug = ""
-    stdebContents = ""
-    # ensure we are in a valid project directory
     try:
-        f = open('stdeb.cfg', 'rb')
-        stdebContents = f.readlines()
-        f.close()
-    except IOError:
-        parser.error('Cannot find stdeb.cfg! Is this a project directory?')
-
-    for line in stdebContents:
-        if 'Package: ' in line:
-            slug = line.split()[1]
-
-    if not slug:
-        parser.error("Cannot find the project slug in the Package field of stdeb.cfg; Damaged file?")
-
-    if not os.path.isfile('setup.py'):
-        parser.error("Cannot find setup.py file! Is this a project directory?")
-    
-    if not os.path.isfile(slug + '.desktop'):
-        parser.error("Cannot find " + slug + ".desktop file! Is this a project directory?")
-
-    (path, dirname) = os.path.split(os.path.abspath(os.curdir))
-    if dirname != slug:
-        parser.error("Not a valid project directory! Aborting.")
-
-    return slug
-
-def getProjectPlatform(parser):
-    pyVersion = ""
-    stdebContents = ""
-    # ensure we are in a valid project directory
-    try:
-        f = open('stdeb.cfg', 'rb')
-        stdebContents = f.readlines()
-        f.close()
-    except IOError:
-        parser.error('Cannot find stdeb.cfg! Is this a project directory?')
-
-    for line in stdebContents:
-        if 'XS-Python-Version: ' in line:
-            pyVersion = line.split()[1]
-
-    if pyVersion == "2.5":
-        return "fremantle"
-    elif pyVersion == "2.6":
-        return "harmattan"
-    else:
-        parser.error("Invalid python version in the XS-Python-Version field of stdeb.cfg; Damaged file?")
-
-def psa_build_deb(parser):
-    if not moduleExists('stdeb'):
-        parser.error('stdeb module not available! Please install it before executing build-deb command')
-
-    slug = getProjectSlug(parser)
-    platform = getProjectPlatform(parser)
-
-    if os.path.exists('deb_dist'):
-        try:
-            print "Cleaning deb_dist directory..."
-            shutil.rmtree('deb_dist')
-        except:
-            parser.error('Cannot clean deb_dist directory! Aborting.')
-    
-    runShellCommand('python setup.py --command-packages=stdeb.command bdist_deb > build-deb.log')
-    
-    debfile = glob.glob('deb_dist/*.deb')[0]
-    insertIcon(debfile, slug, platform)
-    
-    # add credentials, if any exists
-    credentials = ""
-    if os.path.exists(slug+'.aegis'):
-        with open(slug+'.aegis') as f:
-            credentials = f.read()
-
-        if len(credentials.strip()) != 0:
-            insertCredentials(debfile, slug)
+        builder.build(args)
+    except (BuildError, RequirementsError), error:
+        fatal(str(error))
 
     print "Done! The binary package can be found at ./deb_dist"
+    return
 
+def psa_update(args):
+    '''Updates fields of the project'''
 
-def psa_update(options, args, parser):
-    slug = getProjectSlug(parser)
-    oldfile = ""
-    newfile = ""
+    config = get_local_config()
 
-    if options.section is not None:
-        if options.section not in permitted_sections:
-            parser.error("Invalid section; please use a valid section from http://wiki.maemo.org/Task:Package_categories#New_list_for_Diablo")
-        filename = 'stdeb.cfg'
-        with open(filename, 'rb') as f:
-           oldfile = f.read()
-        match = re.search(r'Section:.+', oldfile)
-        oldSection = match.group().split('/')[1]
-        newfile = oldfile.replace('Section: user/' + oldSection, 'Section: user/' + options.section)
-        shutil.copy(filename, 'stdeb.cfg.old')
-        with open(filename, 'wb') as f:
-            f.write(newfile)
-        print 'Application Section updated! The old stdeb.cfg was saved as stdeb.cfg.old'
+    if not config:
+        fatal("""\
+                Couldn't find project configuration file. Are you in the
+                project root directory?""")
 
-    if options.category is not None:
-        if options.category not in permitted_categories:
-            parser.error("Invalid category; please use a valid category from http://standards.freedesktop.org/menu-spec/latest/apa.html")
-        filename = slug+'.desktop'
-        with open(filename, 'rb') as f:
-           oldfile = f.read()
-        match = re.search(r'Categories=.+', oldfile)
-        oldCategory = match.group()[:-1].split("=")[1]
-        newfile = oldfile.replace(oldCategory, options.category)
-        shutil.copy(filename, filename+'.old')
-        with open(filename, 'wb') as f:
-            f.write(newfile)
-        print 'Application category updated! The old '+filename+' was saved as ' + filename + '.old'
+    template = get_template(config['template'])
 
-    if options.appname is not None:
-        filename = slug+'.desktop'
-        with open(filename, 'rb') as f:
-           oldfile = f.read()
-        match = re.search(r'Name=.+', oldfile)
-        oldAppName = match.group().split("=")[1]
-        newfile = oldfile.replace(oldAppName, options.appname)
-        shutil.copy(filename, filename+'.old')
-        with open(filename, 'wb') as f:
-            f.write(newfile)
-        print 'Application name updated! The old '+filename+' was saved as ' + filename + '.old'
+    if not template:
+        fatal("Error: Can't find local template. Available templates: %s." %\
+              (', '.join(get_templates())))
 
-    if options.desc is not None:
-        filename = 'setup.py'
-        with open(filename, 'rb') as f:
-           oldfile = f.read()
-        match = re.search(r'description=.+', oldfile)
-        oldDescription = match.group()[:-1].split("=")[1]
-        newfile = oldfile.replace(oldDescription, '"' + options.desc + '"')
-        shutil.copy(filename, filename+'.old')
-        with open(filename, 'wb') as f:
-            f.write(newfile)
-        print 'Application short description updated! The old '+filename+' was saved as ' + filename + '.old'
+    builder = Project.get_plugins().get(template.builder, None)(template)
+    builder.fill_info(config)
 
-
-def insertIcon(debfile, slug, platform):
-    tempdir = '/tmp/deb.' + str(int(random.uniform(1000000,9999999)))
-    projectdir = os.curdir
-    iconfile = slug+'.png'
-
-    # extract package data and control file into tempdir
-    os.makedirs(tempdir)
-    runShellCommand(' '.join(['dpkg -x', debfile, tempdir]))
-    runShellCommand(' '.join(['dpkg-deb --control', debfile, os.path.join(tempdir, 'DEBIAN')]))
-
-    # check if control file exists
-    if not os.path.isfile(os.path.join(tempdir,'DEBIAN', 'control')):
-        parser.error('Cannot find DEBIAN/control! Aborting.')
-
-    # place icon inside extracted package
-    if platform == "fremantle":
-        os.makedirs(os.path.join(tempdir, 'usr/share/icons/'))
-        shutil.copy(iconfile, os.path.join(tempdir, 'usr/share/icons/'))
-    else:
-        os.makedirs(os.path.join(tempdir, 'usr/share/icons/hicolor/64x64/apps'))
-        shutil.copy(iconfile, os.path.join(tempdir, 'usr/share/icons/hicolor/64x64/apps'))
-
-    # create encoded icon for Application Manager
-    command = 'cd '+projectdir+'; uuencode -m '+slug+'.png '+slug+'.png > '+slug+'.base64'
-    runShellCommand(command)
-    with open(slug+'.base64', 'rb') as f:
-        iconLines = f.readlines()
-        # discard first and last lines
-        iconLines = iconLines[1:-1]
-        # add a space before each line
-        for i in range(0,len(iconLines)):
-            iconLines[i] = ' ' + iconLines[i]
-        # now write the proper data into debian/control
-        with open(os.path.join(tempdir,'DEBIAN', 'control'), 'ab') as f:
-            f.write('Maemo-Icon-26:\n')
-            for l in iconLines:
-                f.write(l)
-
-    #reassemble package
-    runShellCommand(' '.join(['fakeroot dpkg -b', tempdir, debfile]))
-
-    shutil.rmtree(tempdir)
-
-def insertCredentials(debfile, slug):
-    tempdir = '/tmp/deb.' + str(int(random.uniform(1000000,9999999)))
-    credsfile = slug + '.aegis'
-
-    # extract package data and control file into tempdir
-    os.makedirs(tempdir)
-    runShellCommand(' '.join(['dpkg -x', debfile, tempdir]))
-    runShellCommand(' '.join(['dpkg-deb --control', debfile, os.path.join(tempdir, 'DEBIAN')]))
-
-    # check if control file exists
-    if not os.path.isfile(os.path.join(tempdir,'DEBIAN', 'control')):
-        parser.error('Cannot find DEBIAN/control! Aborting.')
-
-    # create digsigsums file
-    matches = []
-    for root, dirnames, filenames in os.walk(tempdir):
-        if len(filenames) != 0 and not 'DEBIAN' in root:
-            for filename in filenames:
-                tmp = '/'.join(os.path.join(root.split('/')[3:]))
-                matches.append(os.path.join(tmp,filename))
-
-    args = ' '.join(matches)
-    command = 'cd '+ tempdir + '; python ' + os.path.join(scripts_path, 'refhashmake.py') + \
-            ' -c -a -o com.nokia.maemo -r -f ' +  args + ' > ' + os.path.join(tempdir,'DEBIAN/digsigsums')
-    runShellCommand(command)
-
-    matches = []
-    for root, dirnames, filenames in os.walk(tempdir):
-        if len(filenames) != 0 and 'DEBIAN' in root:
-            for filename in filenames:
-                tmp = '/'.join(os.path.join(root.split('/')[4:]))
-                matches.append(os.path.join(tmp,filename))
-
-    args = ' '.join(matches)
-    command = 'cd ' + tempdir + '/DEBIAN; python ' + os.path.join(scripts_path, 'refhashmake.py') + \
-            ' -c -a -o com.nokia.maemo -p var/lib/dpkg/info/'+ slug + '. -r -f ' + args + ' >> ' + \
-            os.path.join(tempdir,'DEBIAN/digsigsums')
-    runShellCommand(command)
-
-    # reassemble the package
-    runShellCommand(' '.join(['fakeroot dpkg -b', tempdir, debfile]))
-
-    # inject credentials file
-    command = 'cd deb_dist; python ' + os.path.join(scripts_path, 'deb-add.py') + ' --control ' + tempdir + '/DEBIAN/control ../' + \
-            credsfile + '=_aegis'
-    runShellCommand(command)
-    shutil.rmtree(tempdir)
-
-
-def runShellCommand(command, verbose=False):
-    print 'Running shell command: ' + command
-    returnCode = subprocess.call(command, shell=True)
-    if returnCode:
-        #print "Error running command: " + command
-        raise Exception("Error running command: " + command)
-
-
-def moduleExists(module):
-    try:
-        __import__(module)
-    except ImportError:
-        return False
-    else:
-        return True
+    builder.update(args)
 
 if __name__ == "__main__":
-
-    if not moduleExists('stdeb'):
-        print "---------------------------------------------------------------------"
-        print "| WARNING: stdeb is not installed, build-deb command will not work! |"
-        print "---------------------------------------------------------------------"
-
-    #try to find templates in the canonical path
-    #if the command fails, search for templates in $HOME/psa-templates
-    templates_path = '/usr/share/pyside-assistant/templates'
-    scripts_path = '/usr/share/pyside-assistant/scripts'
-    if not os.path.isdir(templates_path):
-        home = os.getenv("HOME")
-        templates_path = os.path.join(home, "psa-templates")
-        if not os.path.isdir(templates_path):
-            print "Templates not found; either properly install pyside-assistant or place them in ~/psa-templates"
-            sys.exit(1)
-
-    if not os.path.isdir(scripts_path):
-        home = os.getenv("HOME")
-        scripts_path = os.path.join(home, "psa-scripts")
-        if not os.path.isdir(scripts_path):
-            print "Internal scripts not found; either properly install pyside-assistant or place them in ~/psa-scripts"
-            sys.exit(1)
-
-    random.seed()
-    main(templates_path, scripts_path)
-
+    main()

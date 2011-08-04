@@ -18,21 +18,36 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
 # 02110-1301 USA
 
+import os
+import sys
 from distutils.core import setup
+from distutils import sysconfig
+from distutils import log
+import shutil
 import glob
 
 setup(name="pyside-assistant",
-      scripts=['psa'],
-      version='0.1.0',
-      maintainer="Bruno Araujo",
-      maintainer_email="bruno.araujo@indt.org.br",
-      description="Helper scripts for creating PySide-based applications",
-      long_description="""
-       pyside-assistant is a set of helper scripts which aids the developer to create
-       all needed files to successfully create a application using PySide, which can be
-       easily built and deployed without additional tools.
-      """,
-      data_files=[('share/pyside-assistant/templates/fremantle', glob.glob('templates/fremantle/*')),
-                  ('share/pyside-assistant/templates/harmattan', glob.glob('templates/harmattan/*')),
-                  ('share/pyside-assistant/templates', ['README.assistant']),
-                  ('share/pyside-assistant/scripts', glob.glob('scripts/*')), ],)
+            scripts=['psa'],
+            data_files=[
+                ('share/psa', ['README']),
+                ('share/psa/templates/harmattan',
+                        glob.glob('templates/harmattan/*.template') +
+                        ['templates/harmattan/template.cfg']),
+                ('share/psa/templates/harmattan/qml',
+                        glob.glob('templates/harmattan/qml/*.template')),
+                ('share/psa/templates/fremantle',
+                        glob.glob('templates/fremantle/*.template') +
+                        ['templates/fremantle/template.cfg']),
+                ('share/psa/templates/fremantle/qml',
+                        glob.glob('templates/fremantle/qml/*.template')),
+                ('share/psa/scripts', ['scripts/refhashmake.py', 'scripts/deb_add.py']),
+            ],
+            version='0.1.0',
+            maintainer="Bruno Araujo",
+            maintainer_email="bruno.araujo@indt.org.br",
+            description="Helper scripts for creating PySide-based applications",
+            long_description="""
+            pyside-assistant is a set of helper scripts which aids the developer to create
+            all needed files to successfully create a application using PySide, which can be
+            easily built and deployed without additional tools.
+            """,)
