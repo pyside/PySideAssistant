@@ -29,7 +29,7 @@ update - updates data from the current project
 list - lists the available templates
 help - for help on a specific command
 
-To displaying the arguments for each command run %prog --help
+To display the arguments for each command run %prog --help
 """
 
 DOCS = __doc__.split('\n\n')
@@ -60,10 +60,6 @@ try:
 except ImportError:
     logging.warning('stdeb not available. Support for building deb packages disabled.')
 
-
-
-#from PySideAssistant import templates
-#from PySideAssistant import config
 
 class BuildError(Exception):
     '''Raised for errors during the build'''
