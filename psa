@@ -749,7 +749,9 @@ class Fremantle(DebProject):
         '''Build checks'''
         DebProject.pre_build(self)
         # Detect is python 2.5 is available
-        if subprocess.call('python -c "pass"'.split()):
+        try:
+            subprocess.call('python2.5 -c 42'.split())
+        except OSError:
             raise BuildRequirementsError('Fremantle projects require python2.5')
 
 
