@@ -64,7 +64,7 @@ except ImportError:
 class BuildError(Exception):
     '''Raised for errors during the build'''
 
-class BuildRequirementsError(Exception):
+class RequirementsError(Exception):
     '''Raised for errors during the build'''
 
 # Utility functions
@@ -410,12 +410,12 @@ class DebProject(QmlProject):
 
     def pre_build(self):
         if not 'stdeb' in sys.modules:
-            raise BuildRequirementsError('stdeb is needed to build debian packages')
+            raise RequirementsError('stdeb is needed to build debian packages')
 
         proc = subprocess.Popen(['uuencode', '--version'], stdout=subprocess.PIPE)
         proc.communicate()
         if proc.returncode:
-            raise BuildRequirementsError('uuencode is needed to insert icon in debian packages')
+            raise RequirementsError('uuencode is needed to insert icon in debian packages')
 
     def execute_build(self):
         '''Execute the proper build'''
@@ -637,7 +637,7 @@ class Harmattan(DebProject):
                 self.refhashmake = __import__('refhashmake')
                 self.deb_add = __import__('deb_add')
             except ImportError:
-                raise BuildRequirementsError("Can't find harmattan modules")
+                raise RequirementsError("Can't find harmattan modules")
             finally:
                 sys.path.remove(os.path.join(sys.prefix, 'share', 'psa', 'scripts'))
         finally:
@@ -752,7 +752,7 @@ class Fremantle(DebProject):
         try:
             subprocess.call('python2.5 -c 42'.split())
         except OSError:
-            raise BuildRequirementsError('Fremantle projects require python2.5')
+            raise RequirementsError('Fremantle projects require python2.5')
 
 
 # Had to reimplement this as the original method uses textwrap.fill
@@ -984,7 +984,7 @@ def psa_build(args):
 
     try:
         builder.build(args)
-    except (BuildError, BuildRequirementsError), error:
+    except (BuildError, RequirementsError), error:
         fatal(str(error))
 
     print "Done! The binary package can be found at ./deb_dist"
