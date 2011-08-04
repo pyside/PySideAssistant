@@ -1,3 +1,10 @@
+pyside-assistant (0.5) unstable; urgency=low
+
+  * Refactor
+  * Split templates from commands
+
+ -- Lauro Moura <lauro.neto@openbossa.org>  Thu, 04 Aug 2011 17:44:36 -0300
+
 pyside-assistant (0.4) unstable; urgency=low
 
   [ Willer Moreira ]
