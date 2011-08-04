@@ -12,4 +12,5 @@ setup(name="${PROJECT}",
       description="${DESC}",
       long_description=read('${PROJECT}.longdesc'),
       data_files=[('share/applications/hildon',['${PROJECT}.desktop']),
+                  ('share/icons', ['${PROJECT}.png']),
                   ('/opt/usr/share/${PROJECT}/qml', glob.glob('qml/*.qml')), ],)
