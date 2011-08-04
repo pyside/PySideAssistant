@@ -212,6 +212,8 @@ class QmlProject(Project):
     def init(self, slug, args):
         '''Initializes the project folder'''
 
+        self.pre_init()
+
         self.slug = slug
         self.projectdir = os.path.abspath(os.path.join(os.curdir, slug))
 
@@ -228,6 +230,14 @@ class QmlProject(Project):
         self.process_fields()
 
         self.write_project_config_file()
+
+        self.post_init()
+
+    def pre_init(self):
+        '''Pre-init checks'''
+
+    def post_init(self):
+        '''Post init actions'''
 
     def write_project_config_file(self):
         '''Initializes the file with the project configuration information'''
@@ -745,10 +755,18 @@ class Fremantle(DebProject):
 
     name = 'fremantle'
 
+    def pre_init(self):
+        '''Init checks'''
+
+        self.check_py25()
+
     def pre_build(self):
         '''Build checks'''
         DebProject.pre_build(self)
-        # Detect is python 2.5 is available
+        self.check_py25()
+
+    def check_py25(self):
+        '''Is python 2.5 available?'''
         try:
             subprocess.call('python2.5 -c 42'.split())
         except OSError:
@@ -946,7 +964,10 @@ def psa_init(args):
         fatal("Can't find builder class %s for template %s." %\
                 (template.builder, template.name))
 
-    builder.init(slug, args)
+    try:
+        builder.init(slug, args)
+    except (RequirementsError,), error:
+        fatal(str(error))
 
     readme_path = get_readme_path()
     if readme_path:
