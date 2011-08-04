@@ -1,0 +1,16 @@
+from distutils.core import setup
+import os, sys, glob
+
+def read(fname):
+    return open(os.path.join(os.path.dirname(__file__), fname)).read()
+
+setup(name="${PROJECT}",
+      scripts=['${PROJECT}'],
+      version='0.1.0',
+      maintainer="${MAINTAINER}",
+      maintainer_email="${EMAIL}",
+      description="${DESC}",
+      long_description=read('${PROJECT}.longdesc'),
+      data_files=[('share/applications',['${PROJECT}.desktop']),
+                  ('share/pixmaps', ['${PROJECT}.png']),
+                  ('share/${PROJECT}/qml', glob.glob('qml/*.qml')), ],)
