@@ -8,6 +8,9 @@ import sys
 import tempfile
 from contextlib import contextmanager
 
+import tarfile
+import arfile
+
 @contextmanager
 def working_directory(path):
     '''Simple context manager to change the working directory'''
@@ -182,27 +185,139 @@ class InitTest(PySideAssistantCommandsTest):
 
 
 class BuildTest(PySideAssistantCommandsTest):
-    def testBuildDebCommand(self):
+
+
+    def init_project(self, project, templatename):
         with working_directory(self.path):
-            command = 'psa init testproject harmattan > /dev/null'
+            command = 'psa init %s %s > /dev/null' % (project, templatename)
             self.runShellCommand(command)
-            with working_directory(os.path.join(self.path, 'testproject')):
-                command = 'psa build-deb > /dev/null'
-                self.runShellCommand(command)
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'deb_dist', 'testproject_0.1.0-1_all.deb')))
 
-        #TODO test if icon was added.
+        return os.path.join(self.path, project)
 
-
-    def testBuildDebCommandFremantle(self):
-        with working_directory(self.path):
-            command = 'psa init testproject fremantle > /dev/null'
+    def build_deb(self, project, path):
+        expected_deb = os.path.join(path, 'deb_dist', ('%s_0.1.0-1_all.deb' % project))
+        with working_directory(os.path.join(self.path, project)):
+            command = 'psa build-deb > /dev/null'
             self.runShellCommand(command)
-            with working_directory(os.path.join(self.path, 'testproject')):
-                command = 'psa build-deb > /dev/null'
-                self.runShellCommand(command)
-                self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'deb_dist', 'testproject_0.1.0-1_all.deb')))
+        self.assert_(os.path.exists(expected_deb), msg="Debian file %s does not exist" % expected_deb)
 
+        return expected_deb
+
+    def check_deb_contents(self, deb, deb_contents):
+        path = tempfile.mkdtemp(prefix='psa_deb')
+
+        try:
+            arfile.extract(deb, targetdir=path)
+
+            rootfiles = deb_contents['root']
+            for filename in rootfiles:
+                self.assertTrue(os.path.exists(os.path.join(path, filename)))
+
+            # control.tar.gz
+            files = deb_contents['control']
+            tar = tarfile.open(os.path.join(path, 'control.tar.gz'), 'r')
+
+            try:
+                for filename in files:
+                    self.assertTrue(tar.getmember(filename))
+            finally:
+                tar.close()
+
+            # data.tar.gz
+            files = deb_contents['data']
+            tar = tarfile.open(os.path.join(path, 'data.tar.gz'), 'r')
+
+            try:
+                for filename in files:
+                    self.assertTrue(tar.getmember(filename))
+            finally:
+                tar.close()
+        finally:
+            shutil.rmtree(path)
+
+    def base_debian_components(self):
+        '''Base debian components common to all packages'''
+
+        return {
+                'root': ['debian-binary'],
+                'control': [
+                        './control',
+                        './md5sums',
+                        './postinst',
+                ],
+                'data': [
+                ]
+        }
+
+    def testBuildHarmattan(self):
+
+        project = 'foobar'
+
+        path = self.init_project(project, 'harmattan')
+
+        with open(os.path.join(path, project+'.aegis'), 'w') as handle:
+            handle.write('The quick brown fox jumps over the lazy dog')
+
+        deb = self.build_deb(project, path)
+
+        deb_contents = self.base_debian_components()
+
+        deb_contents['root'].append('./_aegis')
+        deb_contents['control'].append('./digsigsums')
+        deb_contents['data'].append('./usr/bin/%s' % project)
+        deb_contents['data'].append('./usr/share/applications/%s.desktop' % project)
+        deb_contents['data'].append('./usr/share/icons/hicolor/64x64/apps/%s.png' % project)
+        deb_contents['data'].append('./usr/share/%s/qml/main.qml' % project)
+        deb_contents['data'].append('./usr/share/%s/qml/MainPage.qml' % project)
+
+        self.check_deb_contents(deb, deb_contents)
+
+    def testBuildFremantle(self):
+        project = 'foobar'
+
+        path = self.init_project(project, 'fremantle')
+
+        deb = self.build_deb(project, path)
+
+        deb_contents = self.base_debian_components()
+
+        deb_contents['data'].append('./usr/bin/%s' % project)
+        deb_contents['data'].append('./usr/share/applications/hildon/%s.desktop' % project)
+        deb_contents['data'].append('./usr/share/icons/%s.png' % project)
+        deb_contents['data'].append('./opt/usr/share/%s/qml/main.qml' % project)
+
+        self.check_deb_contents(deb, deb_contents)
+
+    def testBuildUbuntu(self):
+        project = 'foobar'
+
+        path = self.init_project(project, 'ubuntu-qml')
+
+        deb = self.build_deb(project, path)
+
+        deb_contents = self.base_debian_components()
+
+        deb_contents['data'].append('./usr/bin/%s' % project)
+        deb_contents['data'].append('./usr/share/applications/%s.desktop' % project)
+        deb_contents['data'].append('./usr/share/pixmaps/%s.png' % project)
+        deb_contents['data'].append('./usr/share/%s/qml/main.qml' % project)
+
+        self.check_deb_contents(deb, deb_contents)
+
+    def testBuildUbuntuGui(self):
+        project = 'foobar'
+
+        path = self.init_project(project, 'ubuntu-qtgui')
+
+        deb = self.build_deb(project, path)
+
+        deb_contents = self.base_debian_components()
+
+        deb_contents['data'].append('./usr/bin/%s' % project)
+        deb_contents['data'].append('./usr/share/applications/%s.desktop' % project)
+        deb_contents['data'].append('./usr/share/pixmaps/%s.png' % project)
+
+        self.check_deb_contents(deb, deb_contents)
 
 class UpdateTest(PySideAssistantCommandsTest):
 
