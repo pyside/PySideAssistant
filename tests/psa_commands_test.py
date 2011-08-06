@@ -195,18 +195,16 @@ class BuildTest(PySideAssistantCommandsTest):
 
 
     def testBuildDebCommandFremantle(self):
-
-            with working_directory(self.path):
-                command = 'psa init testproject fremantle > /dev/null'
+        with working_directory(self.path):
+            command = 'psa init testproject fremantle > /dev/null'
+            self.runShellCommand(command)
+            with working_directory(os.path.join(self.path, 'testproject')):
+                command = 'psa build-deb > /dev/null'
                 self.runShellCommand(command)
-                with working_directory(os.path.join(self.path, 'testproject')):
-                    command = 'psa build-deb > /dev/null'
-                    self.runShellCommand(command)
-                    self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'deb_dist', 'testproject_0.1.0-1_all.deb')))
+                self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'deb_dist', 'testproject_0.1.0-1_all.deb')))
 
 
 class UpdateTest(PySideAssistantCommandsTest):
-    
 
     def testUpdateCommand(self):
         command = ' '.join(['cd', self.path, ';', 'psa init testproject harmattan > /dev/null'])
