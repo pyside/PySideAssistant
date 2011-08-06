@@ -5,6 +5,7 @@ import shutil
 import os
 import subprocess
 import sys
+import tempfile
 from contextlib import contextmanager
 
 @contextmanager
@@ -21,7 +22,7 @@ def working_directory(path):
 class PySideAssistantCommandsTest(unittest.TestCase):
 
     def setUp(self):
-        self.path = '/tmp/psa-unittests'
+        self.path = tempfile.mkdtemp(prefix='psatemp')
         shutil.rmtree(self.path, ignore_errors=True)
         os.makedirs(self.path)
 
