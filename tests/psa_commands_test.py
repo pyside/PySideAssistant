@@ -36,6 +36,10 @@ class PySideAssistantCommandsTest(unittest.TestCase):
         if proc.returncode:
             self.fail(stderr)
 
+    def verifyDirectoryStructure(self, root, files):
+        for filename in files:
+            self.assert_(os.path.exists(os.path.join(root, filename)), msg='File %s not found' % filename)
+
 
 class InitTest(PySideAssistantCommandsTest):
     def testInitCommandHarmattan(self):
@@ -46,22 +50,23 @@ class InitTest(PySideAssistantCommandsTest):
         #assert all files are in place
         project_path = os.path.join(self.path, 'testproject-harmattan')
 
-        self.assert_(os.path.isdir(project_path))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan.psa')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan.aegis')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'MANIFEST.in')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'setup.py')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan.longdesc')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'stdeb.cfg')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan.desktop')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'qml')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'qml/MainPage.qml')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'qml/main.qml')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan.png')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'README.assistant')))
+        filenames = [
+         'testproject-harmattan.psa',
+         'testproject-harmattan.aegis',
+         'testproject-harmattan',
+         'MANIFEST.in',
+         'setup.py',
+         'testproject-harmattan.longdesc',
+         'stdeb.cfg',
+         'testproject-harmattan.desktop',
+         'qml',
+         'qml/MainPage.qml',
+         'qml/main.qml',
+         'testproject-harmattan.png',
+         'README.assistant',
+        ]
 
+        self.verifyDirectoryStructure(project_path, filenames)
 
     def testInitCommandFremantle(self):
         with working_directory(self.path):
@@ -69,18 +74,69 @@ class InitTest(PySideAssistantCommandsTest):
             self.runShellCommand(command)
 
         #assert all files are in place
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'testproject-fremantle')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'testproject-fremantle.psa')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'MANIFEST.in')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'setup.py')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'testproject-fremantle.longdesc')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'stdeb.cfg')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'testproject-fremantle.desktop')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'qml')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'qml/main.qml')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'testproject-fremantle.png')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'README.assistant')))
+        project_path = os.path.join(self.path, 'testproject-fremantle')
+
+        filenames = [
+         'testproject-fremantle.psa',
+         'testproject-fremantle',
+         'MANIFEST.in',
+         'setup.py',
+         'testproject-fremantle.longdesc',
+         'stdeb.cfg',
+         'testproject-fremantle.desktop',
+         'qml',
+         'qml/main.qml',
+         'testproject-fremantle.png',
+         'README.assistant',
+        ]
+
+        self.verifyDirectoryStructure(project_path, filenames)
+
+    def testInitCommandUbuntu(self):
+        with working_directory(self.path):
+            command = 'psa init testproject-ubuntu ubuntu-qml > /dev/null'
+            self.runShellCommand(command)
+
+        #assert all files are in place
+        project_path = os.path.join(self.path, 'testproject-ubuntu')
+
+        filenames = [
+         'testproject-ubuntu.psa',
+         'testproject-ubuntu',
+         'MANIFEST.in',
+         'setup.py',
+         'testproject-ubuntu.longdesc',
+         'stdeb.cfg',
+         'testproject-ubuntu.desktop',
+         'qml',
+         'qml/main.qml',
+         'testproject-ubuntu.png',
+         'README.assistant',
+        ]
+
+        self.verifyDirectoryStructure(project_path, filenames)
+
+    def testInitCommandUbuntu(self):
+        with working_directory(self.path):
+            command = 'psa init testproject-ubuntu-gui ubuntu-qtgui > /dev/null'
+            self.runShellCommand(command)
+
+        #assert all files are in place
+        project_path = os.path.join(self.path, 'testproject-ubuntu-gui')
+
+        filenames = [
+         'testproject-ubuntu-gui.psa',
+         'testproject-ubuntu-gui',
+         'MANIFEST.in',
+         'setup.py',
+         'testproject-ubuntu-gui.longdesc',
+         'stdeb.cfg',
+         'testproject-ubuntu-gui.desktop',
+         'testproject-ubuntu-gui.png',
+         'README.assistant',
+        ]
+
+        self.verifyDirectoryStructure(project_path, filenames)
 
     def testInitCommandParameters(self):
         #test long commands
