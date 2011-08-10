@@ -1,0 +1,66 @@
+#!/usr/bin/python
+
+import sys
+
+from PySide import QtGui
+from PySide import QtDeclarative
+import os
+
+# Comment the line below if you don't want to use OpenGL for QML rendering or if it is not supported
+from PySide import QtOpenGL
+
+
+class MyWidget(QtGui.QWidget):
+
+    def __init__(self, parent=None):
+        QtGui.QWidget.__init__(self, parent=parent)
+
+        self._layout = QtGui.QVBoxLayout()
+        self.text = QtGui.QLabel('My text')
+        self.button = QtGui.QPushButton('Click!')
+        self._layout.addWidget(self.text)
+        self._layout.addWidget(self.button)
+
+        self.setLayout(self._layout)
+
+
+class MyWindow(QtGui.QMainWindow):
+
+    def __init__(self, parent=None):
+        QtGui.QMainWindow.__init__(self, parent=parent)
+        self.setCentralWidget(MyWidget())
+        self.centralWidget().button.clicked.connect(self.close)
+
+        self.create_menus()
+
+    def create_menus(self):
+
+        self.fileMenu = self.menuBar().addMenu("&File")
+        self.fileMenu.addAction("&New")
+        self.fileMenu.addAction("&Save")
+        self.fileMenu.addSeparator()
+        quitAction = self.fileMenu.addAction("&Quit")
+
+        quitAction.triggered.connect(self.close)
+
+    def center(self):
+        '''Centers the window in the screen'''
+
+        r = self.frameGeometry()
+        r.moveCenter(QtGui.QDesktopWidget().availableGeometry().center())
+        self.move(r.topLeft())
+
+
+def main():
+
+    app = QtGui.QApplication(sys.argv)
+    window = MyWindow()
+
+    window.show()
+
+    window.center()
+
+    return app.exec_()
+
+if __name__ == "__main__":
+    main()

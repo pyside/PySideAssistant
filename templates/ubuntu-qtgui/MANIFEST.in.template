@@ -1,0 +1,3 @@
+include *.desktop
+include *.png
+include ${PROJECT}.longdesc

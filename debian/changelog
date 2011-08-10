@@ -1,4 +1,4 @@
-pyside-assistant (0.5) unstable; urgency=low
+pyside-assistant (0.5-ubuntu4~n1) natty; urgency=low
 
   * Refactor
   * Split templates from commands

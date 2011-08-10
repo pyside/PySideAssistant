@@ -207,7 +207,7 @@ class QmlProject(Project):
 
     def placeholders(self):
         '''Returns the mapping of substitutions for template processing'''
-        return dict(PROJECT=self.slug)
+        return dict(PROJECT=self.slug, PYVERSION='%d.%d'%(sys.version_info[:2]))
 
     def init(self, slug, args):
         '''Initializes the project folder'''
@@ -281,6 +281,9 @@ class QmlProject(Project):
 
     def copy_template_files(self):
         '''Copy the template files to project folder, replacing the project information'''
+
+        # Make root dir
+        os.makedirs(self.projectdir)
 
         for root, dirnames, filenames in os.walk(self.template_info.path):
             for dirname in dirnames:

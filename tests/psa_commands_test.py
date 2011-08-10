@@ -5,7 +5,11 @@ import shutil
 import os
 import subprocess
 import sys
+import tempfile
 from contextlib import contextmanager
+
+import tarfile
+import arfile
 
 @contextmanager
 def working_directory(path):
@@ -21,7 +25,7 @@ def working_directory(path):
 class PySideAssistantCommandsTest(unittest.TestCase):
 
     def setUp(self):
-        self.path = '/tmp/psa-unittests'
+        self.path = tempfile.mkdtemp(prefix='psatemp')
         shutil.rmtree(self.path, ignore_errors=True)
         os.makedirs(self.path)
 
@@ -35,6 +39,10 @@ class PySideAssistantCommandsTest(unittest.TestCase):
         if proc.returncode:
             self.fail(stderr)
 
+    def verifyDirectoryStructure(self, root, files):
+        for filename in files:
+            self.assert_(os.path.exists(os.path.join(root, filename)), msg='File %s not found' % filename)
+
 
 class InitTest(PySideAssistantCommandsTest):
     def testInitCommandHarmattan(self):
@@ -45,22 +53,23 @@ class InitTest(PySideAssistantCommandsTest):
         #assert all files are in place
         project_path = os.path.join(self.path, 'testproject-harmattan')
 
-        self.assert_(os.path.isdir(project_path))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan.psa')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan.aegis')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'MANIFEST.in')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'setup.py')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan.longdesc')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'stdeb.cfg')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan.desktop')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'qml')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'qml/MainPage.qml')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'qml/main.qml')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'testproject-harmattan.png')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-harmattan', 'README.assistant')))
+        filenames = [
+         'testproject-harmattan.psa',
+         'testproject-harmattan.aegis',
+         'testproject-harmattan',
+         'MANIFEST.in',
+         'setup.py',
+         'testproject-harmattan.longdesc',
+         'stdeb.cfg',
+         'testproject-harmattan.desktop',
+         'qml',
+         'qml/MainPage.qml',
+         'qml/main.qml',
+         'testproject-harmattan.png',
+         'README.assistant',
+        ]
 
+        self.verifyDirectoryStructure(project_path, filenames)
 
     def testInitCommandFremantle(self):
         with working_directory(self.path):
@@ -68,18 +77,69 @@ class InitTest(PySideAssistantCommandsTest):
             self.runShellCommand(command)
 
         #assert all files are in place
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'testproject-fremantle')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'testproject-fremantle.psa')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'MANIFEST.in')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'setup.py')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'testproject-fremantle.longdesc')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'stdeb.cfg')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'testproject-fremantle.desktop')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'qml')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'qml/main.qml')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'testproject-fremantle.png')))
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject-fremantle', 'README.assistant')))
+        project_path = os.path.join(self.path, 'testproject-fremantle')
+
+        filenames = [
+         'testproject-fremantle.psa',
+         'testproject-fremantle',
+         'MANIFEST.in',
+         'setup.py',
+         'testproject-fremantle.longdesc',
+         'stdeb.cfg',
+         'testproject-fremantle.desktop',
+         'qml',
+         'qml/main.qml',
+         'testproject-fremantle.png',
+         'README.assistant',
+        ]
+
+        self.verifyDirectoryStructure(project_path, filenames)
+
+    def testInitCommandUbuntu(self):
+        with working_directory(self.path):
+            command = 'psa init testproject-ubuntu ubuntu-qml > /dev/null'
+            self.runShellCommand(command)
+
+        #assert all files are in place
+        project_path = os.path.join(self.path, 'testproject-ubuntu')
+
+        filenames = [
+         'testproject-ubuntu.psa',
+         'testproject-ubuntu',
+         'MANIFEST.in',
+         'setup.py',
+         'testproject-ubuntu.longdesc',
+         'stdeb.cfg',
+         'testproject-ubuntu.desktop',
+         'qml',
+         'qml/main.qml',
+         'testproject-ubuntu.png',
+         'README.assistant',
+        ]
+
+        self.verifyDirectoryStructure(project_path, filenames)
+
+    def testInitCommandUbuntu(self):
+        with working_directory(self.path):
+            command = 'psa init testproject-ubuntu-gui ubuntu-qtgui > /dev/null'
+            self.runShellCommand(command)
+
+        #assert all files are in place
+        project_path = os.path.join(self.path, 'testproject-ubuntu-gui')
+
+        filenames = [
+         'testproject-ubuntu-gui.psa',
+         'testproject-ubuntu-gui',
+         'MANIFEST.in',
+         'setup.py',
+         'testproject-ubuntu-gui.longdesc',
+         'stdeb.cfg',
+         'testproject-ubuntu-gui.desktop',
+         'testproject-ubuntu-gui.png',
+         'README.assistant',
+        ]
+
+        self.verifyDirectoryStructure(project_path, filenames)
 
     def testInitCommandParameters(self):
         #test long commands
@@ -125,31 +185,141 @@ class InitTest(PySideAssistantCommandsTest):
 
 
 class BuildTest(PySideAssistantCommandsTest):
-    def testBuildDebCommand(self):
+
+
+    def init_project(self, project, templatename):
         with working_directory(self.path):
-            command = 'psa init testproject harmattan > /dev/null'
+            command = 'psa init %s %s > /dev/null' % (project, templatename)
             self.runShellCommand(command)
-            with working_directory(os.path.join(self.path, 'testproject')):
-                command = 'psa build-deb > /dev/null'
-                self.runShellCommand(command)
-        self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'deb_dist', 'testproject_0.1.0-1_all.deb')))
 
-        #TODO test if icon was added.
+        return os.path.join(self.path, project)
 
+    def build_deb(self, project, path):
+        expected_deb = os.path.join(path, 'deb_dist', ('%s_0.1.0-1_all.deb' % project))
+        with working_directory(os.path.join(self.path, project)):
+            command = 'psa build-deb > /dev/null'
+            self.runShellCommand(command)
+        self.assert_(os.path.exists(expected_deb), msg="Debian file %s does not exist" % expected_deb)
 
-    def testBuildDebCommandFremantle(self):
+        return expected_deb
 
-            with working_directory(self.path):
-                command = 'psa init testproject fremantle > /dev/null'
-                self.runShellCommand(command)
-                with working_directory(os.path.join(self.path, 'testproject')):
-                    command = 'psa build-deb > /dev/null'
-                    self.runShellCommand(command)
-                    self.assert_(os.path.exists(os.path.join(self.path, 'testproject', 'deb_dist', 'testproject_0.1.0-1_all.deb')))
+    def check_deb_contents(self, deb, deb_contents):
+        path = tempfile.mkdtemp(prefix='psa_deb')
 
+        try:
+            arfile.extract(deb, targetdir=path)
+
+            rootfiles = deb_contents['root']
+            for filename in rootfiles:
+                self.assertTrue(os.path.exists(os.path.join(path, filename)))
+
+            # control.tar.gz
+            files = deb_contents['control']
+            tar = tarfile.open(os.path.join(path, 'control.tar.gz'), 'r')
+
+            try:
+                for filename in files:
+                    self.assertTrue(tar.getmember(filename))
+            finally:
+                tar.close()
+
+            # data.tar.gz
+            files = deb_contents['data']
+            tar = tarfile.open(os.path.join(path, 'data.tar.gz'), 'r')
+
+            try:
+                for filename in files:
+                    self.assertTrue(tar.getmember(filename))
+            finally:
+                tar.close()
+        finally:
+            shutil.rmtree(path)
+
+    def base_debian_components(self):
+        '''Base debian components common to all packages'''
+
+        return {
+                'root': ['debian-binary'],
+                'control': [
+                        './control',
+                        './md5sums',
+                        './postinst',
+                ],
+                'data': [
+                ]
+        }
+
+    def testBuildHarmattan(self):
+
+        project = 'foobar'
+
+        path = self.init_project(project, 'harmattan')
+
+        with open(os.path.join(path, project+'.aegis'), 'w') as handle:
+            handle.write('The quick brown fox jumps over the lazy dog')
+
+        deb = self.build_deb(project, path)
+
+        deb_contents = self.base_debian_components()
+
+        deb_contents['root'].append('./_aegis')
+        deb_contents['control'].append('./digsigsums')
+        deb_contents['data'].append('./usr/bin/%s' % project)
+        deb_contents['data'].append('./usr/share/applications/%s.desktop' % project)
+        deb_contents['data'].append('./usr/share/icons/hicolor/64x64/apps/%s.png' % project)
+        deb_contents['data'].append('./usr/share/%s/qml/main.qml' % project)
+        deb_contents['data'].append('./usr/share/%s/qml/MainPage.qml' % project)
+
+        self.check_deb_contents(deb, deb_contents)
+
+    def testBuildFremantle(self):
+        project = 'foobar'
+
+        path = self.init_project(project, 'fremantle')
+
+        deb = self.build_deb(project, path)
+
+        deb_contents = self.base_debian_components()
+
+        deb_contents['data'].append('./usr/bin/%s' % project)
+        deb_contents['data'].append('./usr/share/applications/hildon/%s.desktop' % project)
+        deb_contents['data'].append('./usr/share/icons/%s.png' % project)
+        deb_contents['data'].append('./opt/usr/share/%s/qml/main.qml' % project)
+
+        self.check_deb_contents(deb, deb_contents)
+
+    def testBuildUbuntu(self):
+        project = 'foobar'
+
+        path = self.init_project(project, 'ubuntu-qml')
+
+        deb = self.build_deb(project, path)
+
+        deb_contents = self.base_debian_components()
+
+        deb_contents['data'].append('./usr/bin/%s' % project)
+        deb_contents['data'].append('./usr/share/applications/%s.desktop' % project)
+        deb_contents['data'].append('./usr/share/pixmaps/%s.png' % project)
+        deb_contents['data'].append('./usr/share/%s/qml/main.qml' % project)
+
+        self.check_deb_contents(deb, deb_contents)
+
+    def testBuildUbuntuGui(self):
+        project = 'foobar'
+
+        path = self.init_project(project, 'ubuntu-qtgui')
+
+        deb = self.build_deb(project, path)
+
+        deb_contents = self.base_debian_components()
+
+        deb_contents['data'].append('./usr/bin/%s' % project)
+        deb_contents['data'].append('./usr/share/applications/%s.desktop' % project)
+        deb_contents['data'].append('./usr/share/pixmaps/%s.png' % project)
+
+        self.check_deb_contents(deb, deb_contents)
 
 class UpdateTest(PySideAssistantCommandsTest):
-    
 
     def testUpdateCommand(self):
         command = ' '.join(['cd', self.path, ';', 'psa init testproject harmattan > /dev/null'])
