@@ -2,4 +2,4 @@
 XS-Python-Version: ${PYVERSION}
 Package: ${PROJECT}
 Section: user/${SECTION}
-Depends: python-pyside.qtgui, python-pyside.qtopengl, python-pyside.qtdeclarative
+Depends: python-pyside.qtgui, python-pyside.qtopengl, python-pyside.qtdeclarative, python
