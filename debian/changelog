@@ -1,6 +1,9 @@
 pyside-assistant (0.6) unstable; urgency=low
 
   * Fix bug #978 - Unexpected dependency for Python 2.7 using pyside-assistant
+  * Add build dep: quilt
+  * New patch:
+    + 01-ubuntu-oneiric-fix.patch
 
  -- Bruno Araujo <bruno.araujo@openbossa.org>  Wed, 19 Oct 2011 13:57:17 -0400
 

@@ -1,0 +1,13 @@
+Index: PySideAssistant/psa
+===================================================================
+--- PySideAssistant.orig/psa	2011-10-19 14:46:54.846511114 -0400
++++ PySideAssistant/psa	2011-10-19 14:47:11.118591800 -0400
+@@ -592,7 +592,7 @@
+             self.maintainer = os.getenv('DEBFULLNAME')
+         else:
+             # if there is no DEBFULLNAME environment variable, get full name from /etc/passwd
+-            currentuser = pwd.getpwnam(os.getlogin())
++            currentuser = pwd.getpwuid(os.getuid())
+             self.maintainer = currentuser.pw_gecos.split(',')[0]
+ 
+         if os.getenv('DEBEMAIL') is not None:
