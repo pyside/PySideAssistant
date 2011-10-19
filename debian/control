@@ -2,7 +2,7 @@ Source: pyside-assistant
 Section: devel
 Priority: extra
 Maintainer: PySide team <contact@pyside.org>
-Build-Depends: debhelper (>= 7.0.50~), python
+Build-Depends: debhelper (>= 7.0.50~), python, quilt
 Standards-Version: 3.9.1
 Homepage: http://wiki.meego.com/Documentation_for_pyside-assistant
 
