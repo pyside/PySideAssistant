@@ -1,3 +1,9 @@
+pyside-assistant (0.6) unstable; urgency=low
+
+  * Fix bug #978 - Unexpected dependency for Python 2.7 using pyside-assistant
+
+ -- Bruno Araujo <bruno.araujo@openbossa.org>  Wed, 19 Oct 2011 13:57:17 -0400
+
 pyside-assistant (0.5-ubuntu4~n1) natty; urgency=low
 
   * Refactor
