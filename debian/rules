@@ -18,5 +18,5 @@ export DH_OPTIONS
 
 
 %:
-	dh $@ 
+	dh $@ --with quilt
 

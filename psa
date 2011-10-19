@@ -435,11 +435,47 @@ class DebProject(QmlProject):
 
         remove_directory(os.path.abspath(os.path.join(os.curdir, 'deb_dist')))
 
-        cmd = 'python setup.py --command-packages=stdeb.command bdist_deb'
+        # create packaging with stdeb
+        cmd = 'python setup.py --command-packages=stdeb.command sdist_dsc'
         args = cmd.split()
 
-        execute_with_log(args, 'build-deb.log',
+        execute_with_log(args, 'sdist-dsc.log',
                          on_error=BuildError('Failed to build initial package.'))
+
+        # store packaging directory
+        files = os.listdir(os.path.join(self.projectdir, 'deb_dist'))
+        packaging_dir = []
+        for f in files:
+            if os.path.isdir(os.path.join(self.projectdir, 'deb_dist', f)):
+                packaging_dir.append(f)
+
+        if len(packaging_dir) != 1:
+            raise BuildError('More than one source directory, not sure where to look')
+
+        full_dir = os.path.join(self.projectdir, 'deb_dist', packaging_dir[0])
+
+        # modify debian/control Depends field
+        # In this point we remove the ${python:Depends} variable automatically
+        # put in there by stdeb; this is necessary because this variable was
+        # being substituted by an incorrect Python version in some platforms
+        # (e.g. Ubuntu Natty); so, to avoid potential problems we just get rid of it.
+        # The mandatory dependencies (python-pyside.qtgui and others), specified
+        # in stdeb.cfg, will pull the default Python anyway if it is not already present.
+
+        control_file = os.path.join(full_dir, 'debian', 'control')
+        with open(control_file, 'r') as f:
+            old_control = f.read()
+
+        new_control = old_control.replace('${python:Depends},', '')
+        with open(control_file, 'w') as f:
+            f.write(new_control)
+
+        # run dpkg-buildpackage
+        cmd = 'dpkg-buildpackage -D -rfakeroot -uc -b'
+        args = cmd.split()
+        with working_directory(full_dir):
+            execute_with_log(args, 'dpkg-buildpackage.log',
+                             on_error=BuildError('Failed to build initial package.'))
 
         debfile = glob.glob('deb_dist/*.deb')[0]
         self.insert_icon(os.path.abspath(debfile))
