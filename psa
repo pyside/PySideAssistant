@@ -850,7 +850,7 @@ def main():
     elif args[0] == "list":
         psa_list_templates()
     else:
-        fatal("Unknow command. Try init, build-deb, update, or list")
+        fatal("Unknown command. Try init, build-deb, update, or list")
 
 def get_readme_path():
     '''Returns the README file path'''
