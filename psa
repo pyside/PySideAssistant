@@ -440,7 +440,7 @@ class DebProject(QmlProject):
         args = cmd.split()
 
         execute_with_log(args, 'sdist-dsc.log',
-                         on_error=BuildError('Failed to build initial package.'))
+                         on_error=BuildError('Failed to build initial package, see %s/sdist-dsc.log for details.' % os.getcwd()))
 
         # store packaging directory
         files = os.listdir(os.path.join(self.projectdir, 'deb_dist'))
@@ -475,7 +475,7 @@ class DebProject(QmlProject):
         args = cmd.split()
         with working_directory(full_dir):
             execute_with_log(args, 'dpkg-buildpackage.log',
-                             on_error=BuildError('Failed to build initial package.'))
+                             on_error=BuildError('Failed to build initial package, see %s/dpkg-buildpackage.log for details.' % os.getcwd()))
 
         debfile = glob.glob('deb_dist/*.deb')[0]
         self.insert_icon(os.path.abspath(debfile))
