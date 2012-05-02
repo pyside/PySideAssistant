@@ -797,20 +797,10 @@ class Fremantle(DebProject):
     def pre_init(self):
         '''Init checks'''
 
-        self.check_py25()
 
     def pre_build(self):
         '''Build checks'''
         DebProject.pre_build(self)
-        self.check_py25()
-
-    def check_py25(self):
-        '''Is python 2.5 available?'''
-        try:
-            subprocess.call('python2.5 -c 42'.split())
-        except OSError:
-            raise RequirementsError('Fremantle projects require python2.5')
-
 
 # Had to reimplement this as the original method uses textwrap.fill
 # and messes up the formatting
