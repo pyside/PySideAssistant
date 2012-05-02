@@ -440,7 +440,7 @@ class DebProject(QmlProject):
         args = cmd.split()
 
         execute_with_log(args, 'sdist-dsc.log',
-                         on_error=BuildError('Failed to build initial package.'))
+                         on_error=BuildError('Failed to build initial package, see %s/sdist-dsc.log for details.' % os.getcwd()))
 
         # store packaging directory
         files = os.listdir(os.path.join(self.projectdir, 'deb_dist'))
@@ -475,7 +475,7 @@ class DebProject(QmlProject):
         args = cmd.split()
         with working_directory(full_dir):
             execute_with_log(args, 'dpkg-buildpackage.log',
-                             on_error=BuildError('Failed to build initial package.'))
+                             on_error=BuildError('Failed to build initial package, see %s/dpkg-buildpackage.log for details.' % os.getcwd()))
 
         debfile = glob.glob('deb_dist/*.deb')[0]
         self.insert_icon(os.path.abspath(debfile))
@@ -797,20 +797,10 @@ class Fremantle(DebProject):
     def pre_init(self):
         '''Init checks'''
 
-        self.check_py25()
 
     def pre_build(self):
         '''Build checks'''
         DebProject.pre_build(self)
-        self.check_py25()
-
-    def check_py25(self):
-        '''Is python 2.5 available?'''
-        try:
-            subprocess.call('python2.5 -c 42'.split())
-        except OSError:
-            raise RequirementsError('Fremantle projects require python2.5')
-
 
 # Had to reimplement this as the original method uses textwrap.fill
 # and messes up the formatting
@@ -832,6 +822,8 @@ def main():
 
     parser.add_option("-v", "--verbose", action="store_true", default=False,
                      help="Output debug messages")
+    parser.add_option("-P", "--project", action="store", default="", 
+                     type="string", help="Set project name manually")
 
     (options, args) = parser.parse_args()
 
@@ -844,13 +836,13 @@ def main():
     if args[0] == "init":
         psa_init(args)
     elif args[0] == "build-deb":
-        psa_build(args)
+        psa_build(args, options)
     elif args[0] == "update":
-        psa_update(args)
+        psa_update(args, options)
     elif args[0] == "list":
         psa_list_templates()
     else:
-        fatal("Unknow command. Try init, build-deb, update, or list")
+        fatal("Unknown command. Try init, build-deb, update, or list")
 
 def get_readme_path():
     '''Returns the README file path'''
@@ -943,13 +935,18 @@ def get_template(name):
 
     return TEMPLATES.get(name, None)
 
-def get_local_config(path=None):
+def get_local_config(options, path=None):
     '''Loads the local project config file'''
     if path is None:
         path = os.curdir
 
-    # Guess project name from current dir name
-    project = os.path.basename(os.path.abspath(path))
+    if options.project == "":
+        # Guess project name from current dir name
+        project = os.path.basename(os.path.abspath(path))
+    else:
+        # Take project name from arguments
+        project = options.project
+    print "Project name is %s" % project
     filename = os.path.join(os.curdir, project+'.psa')
 
     try:
@@ -1018,10 +1015,10 @@ def psa_init(args):
             not supported, open the %s file and comment out the
             needed lines.""" % slug))
 
-def psa_build(args):
+def psa_build(args, options):
     '''Builds the project'''
 
-    config = get_local_config()
+    config = get_local_config(options)
 
     if not config:
         fatal("""\
@@ -1050,10 +1047,10 @@ def psa_build(args):
     print "Done! The binary package can be found at ./deb_dist"
     return
 
-def psa_update(args):
+def psa_update(args, options):
     '''Updates fields of the project'''
 
-    config = get_local_config()
+    config = get_local_config(options)
 
     if not config:
         fatal("""\
