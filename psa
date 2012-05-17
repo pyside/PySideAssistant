@@ -1,4 +1,6 @@
 #!/usr/bin/python
+# -*- coding: 'utf-8' -*-
+
 # This file is part of the PySide project.
 #
 # Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
@@ -51,6 +53,7 @@ import tempfile
 import subprocess
 import glob
 import pwd
+import fileinput
 
 from contextlib import contextmanager
 from ConfigParser import ConfigParser
@@ -439,8 +442,7 @@ class DebProject(QmlProject):
         cmd = 'python setup.py --command-packages=stdeb.command sdist_dsc'
         args = cmd.split()
 
-        execute_with_log(args, 'sdist-dsc.log',
-                         on_error=BuildError('Failed to build initial package.'))
+        execute_with_log(args, 'sdist-dsc.log', on_error=BuildError('Failed to build initial package.'))
 
         # store packaging directory
         files = os.listdir(os.path.join(self.projectdir, 'deb_dist'))
@@ -469,6 +471,7 @@ class DebProject(QmlProject):
         new_control = old_control.replace('${python:Depends},', '')
         with open(control_file, 'w') as f:
             f.write(new_control)
+
 
         # run dpkg-buildpackage
         cmd = 'dpkg-buildpackage -D -rfakeroot -uc -b'
@@ -592,7 +595,7 @@ class DebProject(QmlProject):
             self.maintainer = os.getenv('DEBFULLNAME')
         else:
             # if there is no DEBFULLNAME environment variable, get full name from /etc/passwd
-            currentuser = pwd.getpwnam(os.getlogin())
+            currentuser = pwd.getpwuid(os.getuid())
             self.maintainer = currentuser.pw_gecos.split(',')[0]
 
         if os.getenv('DEBEMAIL') is not None:
@@ -696,7 +699,13 @@ class Harmattan(DebProject):
 
     def execute_build(self):
         '''Overriden from DebProject'''
+
         abs_debfile = super(Harmattan, self).execute_build()
+
+        # rename deb file to reflect target architecture
+        if subprocess.call(['mv', os.path.join(self.projectdir, 'deb_dist', abs_debfile), os.path.join(self.projectdir, 'deb_dist', abs_debfile[:-7] + 'armel.deb')]):
+            raise BuildError('Failed to repackage.')
+        abs_debfile = abs_debfile.replace('_all.deb', '_armel.deb')
 
         self.add_credentials(abs_debfile)
 
@@ -714,6 +723,18 @@ class Harmattan(DebProject):
             if not os.path.isfile(os.path.join(abs_tempdir, 'DEBIAN', 'control')):
                 raise BuildError('Failed to find the control file for icon insertion')
 
+            # optify package if fremantle or harmattan
+            if subprocess.call(['mv', os.path.join(abs_tempdir, 'usr', 'bin'), os.path.join(abs_tempdir, 'opt', self.slug)]):
+                raise BuildError('Failed to optify the package')
+
+            checksum_file = os.path.join(abs_tempdir, 'DEBIAN', 'md5sums')
+            with open(checksum_file, 'r') as f:
+                old_checksum = f.read()
+
+            new_checksum = old_checksum.replace('usr/bin/', 'opt/' + self.slug + '/bin/')
+            with open(checksum_file, 'w') as f:
+                f.write(new_checksum)
+
             self.create_digsums(abs_tempdir)
 
             if subprocess.call(['fakeroot', 'dpkg', '-b', abs_tempdir, abs_debfile]):
@@ -723,6 +744,11 @@ class Harmattan(DebProject):
 
         finally:
             shutil.rmtree(abs_tempdir)
+
+    def update_md5sums(self, controlfile):
+        for line in fileinput.input(controlfile, inplace=1):
+            line = line.replace('usr/bin/', 'opt/' + self.slug + '/bin/')
+            sys.stdout.write(line)
 
     def inject_credentials(self, abs_debfile, abs_tempdir):
         '''Adds the credential to the existing debian file
@@ -804,13 +830,55 @@ class Fremantle(DebProject):
         DebProject.pre_build(self)
         self.check_py25()
 
+    def execute_build(self):
+        '''Overriden from DebProject'''
+
+        abs_debfile = super(Fremantle, self).execute_build()
+
+        # rename deb file to reflect target architecture
+        if subprocess.call(['mv', os.path.join(self.projectdir, 'deb_dist', abs_debfile), os.path.join(self.projectdir, 'deb_dist', abs_debfile[:-7] + 'armel.deb')]):
+            raise BuildError('Failed to repackage.')
+        abs_debfile = abs_debfile.replace('_all.deb', '_armel.deb')
+
+        self.optify(abs_debfile)
+
+    def optify(self, abs_debfile):
+        '''changes directory structure'''
+        abs_tempdir = tempfile.mkdtemp(prefix='psatmp')
+
+        try:
+            if subprocess.call(['dpkg', '-x', abs_debfile, abs_tempdir]):
+                raise BuildError('Failed to extract the deb file for icon insertion')
+
+            if subprocess.call(['dpkg-deb', '--control', abs_debfile, os.path.join(abs_tempdir, 'DEBIAN')]):
+                raise BuildError('Failed to extract the control file for icon insertion')
+
+            if not os.path.isfile(os.path.join(abs_tempdir, 'DEBIAN', 'control')):
+                raise BuildError('Failed to find the control file for icon insertion')
+
+            if subprocess.call(['mv', os.path.join(abs_tempdir, 'usr', 'bin'), os.path.join(abs_tempdir, 'opt', self.slug)]):
+                raise BuildError('Failed to optify the package')
+
+            checksum_file = os.path.join(abs_tempdir, 'DEBIAN', 'md5sums')
+            with open(checksum_file, 'r') as f:
+                old_checksum = f.read()
+
+            new_checksum = old_checksum.replace('usr/bin/', 'opt/' + self.slug + '/bin/')
+            with open(checksum_file, 'w') as f:
+                f.write(new_checksum)
+
+            if subprocess.call(['fakeroot', 'dpkg', '-b', abs_tempdir, abs_debfile]):
+                raise BuildError('Failed to repackage.')
+
+        finally:
+            shutil.rmtree(abs_tempdir)
+
     def check_py25(self):
         '''Is python 2.5 available?'''
         try:
             subprocess.call('python2.5 -c 42'.split())
         except OSError:
             raise RequirementsError('Fremantle projects require python2.5')
-
 
 # Had to reimplement this as the original method uses textwrap.fill
 # and messes up the formatting
