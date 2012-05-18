@@ -702,9 +702,9 @@ class Harmattan(DebProject):
         abs_debfile = super(Harmattan, self).execute_build()
 
         # rename deb file to reflect target architecture
-        if subprocess.call(['mv', os.path.join(self.projectdir, 'deb_dist', abs_debfile), os.path.join(self.projectdir, 'deb_dist', abs_debfile[:-7] + 'armel.deb')]):
+        if subprocess.call(['mv', os.path.join(self.projectdir, 'deb_dist', abs_debfile), os.path.join(self.projectdir, 'deb_dist', abs_debfile[:-10] + '_armel.deb')]):
             raise BuildError('Failed to repackage.')
-        abs_debfile = abs_debfile.replace('_all.deb', '_armel.deb')
+        abs_debfile = abs_debfile[:-10] + '_armel.deb'
 
         self.add_credentials(abs_debfile)
 
