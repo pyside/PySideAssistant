@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # -*- coding: 'utf-8' -*-
 
 # This file is part of the PySide project.
@@ -472,7 +472,6 @@ class DebProject(QmlProject):
         with open(control_file, 'w') as f:
             f.write(new_control)
 
-
         # run dpkg-buildpackage
         cmd = 'dpkg-buildpackage -D -rfakeroot -uc -b'
         args = cmd.split()
@@ -595,7 +594,7 @@ class DebProject(QmlProject):
             self.maintainer = os.getenv('DEBFULLNAME')
         else:
             # if there is no DEBFULLNAME environment variable, get full name from /etc/passwd
-            currentuser = pwd.getpwuid(os.getuid())
+            currentuser = pwd.getpwnam(os.getlogin())
             self.maintainer = currentuser.pw_gecos.split(',')[0]
 
         if os.getenv('DEBEMAIL') is not None:
@@ -699,7 +698,6 @@ class Harmattan(DebProject):
 
     def execute_build(self):
         '''Overriden from DebProject'''
-
         abs_debfile = super(Harmattan, self).execute_build()
 
         # rename deb file to reflect target architecture
@@ -891,6 +889,7 @@ class Fremantle(DebProject):
             subprocess.call('python2.5 -c 42'.split())
         except OSError:
             raise RequirementsError('Fremantle projects require python2.5')
+
 
 # Had to reimplement this as the original method uses textwrap.fill
 # and messes up the formatting

@@ -186,7 +186,6 @@ class InitTest(PySideAssistantCommandsTest):
 
 class BuildTest(PySideAssistantCommandsTest):
 
-
     template = ''
 
     def init_project(self, project, templatename):
