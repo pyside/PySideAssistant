@@ -186,8 +186,10 @@ class InitTest(PySideAssistantCommandsTest):
 
 class BuildTest(PySideAssistantCommandsTest):
 
+    template = ''
 
     def init_project(self, project, templatename):
+        self.template = templatename
         with working_directory(self.path):
             command = 'psa init %s %s > /dev/null' % (project, templatename)
             self.runShellCommand(command)
@@ -195,7 +197,10 @@ class BuildTest(PySideAssistantCommandsTest):
         return os.path.join(self.path, project)
 
     def build_deb(self, project, path):
-        expected_deb = os.path.join(path, 'deb_dist', ('%s_0.1.0-1_all.deb' % project))
+        if (self.template == 'harmattan') or (self.template == 'fremantle'):
+            expected_deb = os.path.join(path, 'deb_dist', ('%s_0.1.0-1_armel.deb' % project))
+        else:
+            expected_deb = os.path.join(path, 'deb_dist', ('%s_0.1.0-1_all.deb' % project))
         with working_directory(os.path.join(self.path, project)):
             command = 'psa build-deb > /dev/null'
             self.runShellCommand(command)
@@ -264,11 +269,11 @@ class BuildTest(PySideAssistantCommandsTest):
 
         deb_contents['root'].append('./_aegis')
         deb_contents['control'].append('./digsigsums')
-        deb_contents['data'].append('./usr/bin/%s' % project)
+        deb_contents['data'].append('./opt/%s/bin/%s' % (project, project))
         deb_contents['data'].append('./usr/share/applications/%s.desktop' % project)
         deb_contents['data'].append('./usr/share/icons/hicolor/64x64/apps/%s.png' % project)
-        deb_contents['data'].append('./usr/share/%s/qml/main.qml' % project)
-        deb_contents['data'].append('./usr/share/%s/qml/MainPage.qml' % project)
+        deb_contents['data'].append('./opt/%s/qml/main.qml' % project)
+        deb_contents['data'].append('./opt/%s/qml/MainPage.qml' % project)
 
         self.check_deb_contents(deb, deb_contents)
 
@@ -281,10 +286,10 @@ class BuildTest(PySideAssistantCommandsTest):
 
         deb_contents = self.base_debian_components()
 
-        deb_contents['data'].append('./usr/bin/%s' % project)
+        deb_contents['data'].append('./opt/%s/bin/%s' % (project, project))
         deb_contents['data'].append('./usr/share/applications/hildon/%s.desktop' % project)
         deb_contents['data'].append('./usr/share/icons/%s.png' % project)
-        deb_contents['data'].append('./opt/usr/share/%s/qml/main.qml' % project)
+        deb_contents['data'].append('./opt/%s/qml/main.qml' % project)
 
         self.check_deb_contents(deb, deb_contents)
 

@@ -18,8 +18,8 @@ def main():
     glw = QtOpenGL.QGLWidget()
     view.setViewport(glw)
 
-    if os.path.exists('/usr/share/${PROJECT}/qml'):
-        view.setSource('/usr/share/${PROJECT}/qml/main.qml')
+    if os.path.exists('/opt/${PROJECT}/qml'):
+        view.setSource('/opt/${PROJECT}/qml/main.qml')
     else:
         view.setSource(os.path.join('qml','main.qml'))
 

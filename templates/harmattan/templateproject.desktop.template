@@ -3,6 +3,6 @@ Encoding=UTF-8
 Version=1.0
 Type=Application
 Name=${APPNAME}
-Exec=invoker --single-instance --type=e /usr/bin/${PROJECT}
+Exec=invoker --single-instance --type=e /opt/${PROJECT}/bin/${PROJECT}
 Icon=/usr/share/icons/hicolor/64x64/apps/${PROJECT}.png
 Categories=${CATEGORY};
